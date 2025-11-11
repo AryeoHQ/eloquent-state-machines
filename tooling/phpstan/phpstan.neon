@@ -1,0 +1,33 @@
+services:
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCanOnlyBeAddedToBackedEnum
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCasesMustHaveEventsAttribute
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableMustUseManagesState
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\ManagesStateCanOnlyBeAddedToStateMachineable
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCannotDuplicateTransitionTriggerPerCase
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggersMustDefineATarget
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggerTargetMustBeAModel
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggerCannotHaveMultipleTargets
+        tags:
+            - phpstan.rules.rule

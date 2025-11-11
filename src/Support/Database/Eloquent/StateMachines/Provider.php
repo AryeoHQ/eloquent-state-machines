@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Support\Database\Eloquent\StateMachines;
+
+use Illuminate\Support\ServiceProvider;
+use Support\Database\Eloquent\StateMachines\Console\Commands\Diagram;
+
+class Provider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        $this->bootViews();
+        $this->bootCommands();
+    }
+
+    private function bootViews(): void
+    {
+        $this->loadViewsFrom(__DIR__.'/../../../../../resources/views', 'state-machine');
+    }
+
+    private function bootCommands(): void
+    {
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands([
+            Diagram::class,
+        ]);
+    }
+}
