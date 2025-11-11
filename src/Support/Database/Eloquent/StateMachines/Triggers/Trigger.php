@@ -29,7 +29,7 @@ abstract class Trigger implements Contracts\Trigger
     {
         if (method_exists(static::class, '__construct')) {
             $reflection = new \ReflectionMethod(static::class, '__construct');
-            $arguments = collect($reflection->getParameters())->map->name->combine($arguments)->toArray();
+            $arguments = collect($reflection->getParameters())->map->name->combine($arguments)->all();
         }
 
         return resolve(static::class, (array) $arguments);
