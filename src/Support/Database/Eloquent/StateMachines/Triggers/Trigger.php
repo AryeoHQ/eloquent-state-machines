@@ -12,6 +12,7 @@ use ReflectionNamedType;
 use ReflectionProperty;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Throwable;
 
 abstract class Trigger implements Contracts\Trigger
 {
@@ -76,9 +77,20 @@ abstract class Trigger implements Contracts\Trigger
     {
         throw_unless(method_exists($this, 'handle'), Exceptions\NotProcessable::class, $this);
 
-        app()->call([$this, 'handle']);
+        rescue(
+            function () {
+                app()->call([$this, 'handle']);
+                $this->transition();
+            },
+            function (Throwable $throwable) {
+                when(
+                    method_exists($this, 'failed'),
+                    fn () => call_user_func([$this, 'failed'], $throwable)
+                );
 
-        $this->transition();
+                throw $throwable;
+            }
+        );
     }
 
     private function dispatchEvent(string $event): void
