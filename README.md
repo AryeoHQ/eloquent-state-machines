@@ -37,6 +37,10 @@ enum Status: string implements StateMachineable
 
 #### 1. Create Events
 ```php
+namespace Users\Status\Events;
+
+use Users\User;
+
 class Activating
 {
     public readonly User $model;
@@ -49,6 +53,10 @@ class Activating
 ```
 
 ```php
+namespace Users\Status\Events;
+
+use Users\User;
+
 class Activated
 {
     public readonly User $model;
@@ -89,6 +97,7 @@ namespace Users\Status\Triggers;
 
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
+use Users\User;
 
 class Suspend extends Trigger
 {
@@ -109,7 +118,7 @@ class Suspend extends Trigger
 
 > Note: The `#[Target]` attribute is required to specify which property contains the model being operated on.
 
-#### Register Transition
+#### 2. Register Transition
 ```php
 namespace Users\Status;
 
@@ -131,6 +140,34 @@ enum Status: string implements StateMachineable
 
     // ..
     case Suspended = 'suspended';
+}
+```
+
+#### Failures
+When a particular `Trigger` fails the state machine will not be moved to the target state. However, you may want to alert your users or revert any actions that were partially completed by the trigger. To accomplish that, you may define a `failed` method on your `Trigger`. The `Throwable` instance that caused `handle()` to fail will be passed to `failed()`.
+
+```php
+namespace Users\Status\Triggers;
+
+use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
+use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
+use Throwable;
+use Users\User;
+
+class Upload extends Trigger
+{
+    #[Target]
+    public readonly User $user;
+
+    public function handle(): void
+    {
+        // business operations that may throw an exception...
+    }
+
+    public function failed(Throwable $throwable): void
+    {
+        $this->user->status->suspend()->run();
+    }
 }
 ```
 
@@ -162,6 +199,8 @@ Once your model is configured with a state machine enum, you can access the stat
 ```php
 namespace Users\Actions;
 
+use Users\User;
+
 class Suspend
 {
     public function handle(User $user)
@@ -173,6 +212,9 @@ class Suspend
 
 ```php
 namespace Users\Policies;
+
+use Illuminate\Auth\Authenticatable;
+use Users\User;
 
 class User
 {
