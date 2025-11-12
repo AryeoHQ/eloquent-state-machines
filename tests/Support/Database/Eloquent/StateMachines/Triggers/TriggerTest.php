@@ -12,11 +12,13 @@ use Support\Database\Eloquent\StateMachines\Triggers\Target;
 use Tests\Fixtures\Users\Status\Status;
 use Tests\Fixtures\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Users\Status\Triggers\Deactivate;
+use Tests\Fixtures\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Users\Status\Triggers\HandleNotDefined;
 use Tests\Fixtures\Users\Status\Triggers\MultipleTargetsDefined;
 use Tests\Fixtures\Users\Status\Triggers\Suspend;
 use Tests\Fixtures\Users\Status\Triggers\TargetNotDefined;
 use Tests\Fixtures\Users\Status\Triggers\TargetNotModel;
+use Tests\Fixtures\Users\Status\Triggers\ThrowsException;
 use Tests\Fixtures\Users\User;
 use Tests\TestCase;
 
@@ -151,5 +153,38 @@ class TriggerTest extends TestCase
         $trigger = Activate::make()->to(Status::Activated)->on(User::factory()->registered()->trashed()->make());
 
         $trigger->run();
+    }
+
+    #[Test]
+    public function it_throws_original_exception_when_handle_throws_exception(): void
+    {
+        $this->expectException(Unprocessable::class);
+
+        $trigger = ThrowsException::make()->to(Status::Activated)->on($user = User::factory()->registered()->make());
+
+        $trigger->run();
+    }
+
+    #[Test]
+    public function it_does_not_transition_when_handle_throws_exception(): void
+    {
+        $this->expectException(Unprocessable::class);
+
+        $trigger = ThrowsException::make()->to(Status::Activated)->on($user = User::factory()->registered()->make());
+
+        $trigger->run();
+
+        $this->assertSame(Status::Registered, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_calls_failed_when_handle_throws_exception(): void
+    {
+        $user = User::factory()->registered()->make();
+
+        rescue(
+            fn () => ThrowsException::make()->to(Status::Activated)->on($user)->run(),
+            fn () => $this->assertNotNull($user->suspended_at)
+        );
     }
 }

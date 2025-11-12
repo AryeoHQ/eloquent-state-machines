@@ -38,6 +38,13 @@ class User extends Model
         ];
     }
 
+    public function markSuspended(): static
+    {
+        return $this->forceFill([
+            'suspended_at' => now(),
+        ]);
+    }
+
     /**
      * @return Attribute<bool, never>
      */
