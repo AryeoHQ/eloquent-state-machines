@@ -33,18 +33,25 @@ class AsStateMachine implements CastsAttributes
      */
     public function get(Model $model, string $key, mixed $value, array $attributes): StateMachines\StateMachine
     {
-        $enum = $this->enumClass::from($value);
-
-        return StateMachines\StateMachine::make($model, $enum);
+        return StateMachines\StateMachine::make($model, $this->resolveEnum($value));
     }
 
     public function set(Model $model, string $key, mixed $value, array $attributes): string|int
+    {
+        return $this->resolveEnum($value)->value;
+    }
+
+    /**
+     * @return TEnum
+     */
+    private function resolveEnum(mixed $value): StateMachineable&BackedEnum
     {
         $enum = match ($value instanceof $this->enumClass) {
             true => $value,
             false => $this->enumClass::from($value),
         };
 
-        return $enum->value;
+        /** @var TEnum $enum */
+        return $enum;
     }
 }
