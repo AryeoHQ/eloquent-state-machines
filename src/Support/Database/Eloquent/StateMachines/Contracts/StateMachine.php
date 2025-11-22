@@ -4,4 +4,6 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Contracts;
 
-interface StateMachine {}
+use JsonSerializable;
+
+interface StateMachine extends JsonSerializable {}

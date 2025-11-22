@@ -48,4 +48,15 @@ class AsStateMachineTest extends TestCase
             $user->forceFill(['status' => Status::Registered])->status
         );
     }
+
+    #[Test]
+    public function it_serializes_to_json(): void
+    {
+        $user = User::factory()->registered()->make();
+
+        $this->assertSame(
+            $user->toJson(),
+            json_encode($user)
+        );
+    }
 }
