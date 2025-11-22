@@ -45,4 +45,9 @@ trait ManagesState
             fn (Transition $transition): Trigger => $transition->using::make(...$arguments)->to($transition->to)->on($proxy->model)
         );
     }
+
+    final public function jsonSerialize(): int|string
+    {
+        return $this->value;
+    }
 }

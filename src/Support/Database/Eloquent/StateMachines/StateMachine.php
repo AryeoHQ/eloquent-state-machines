@@ -48,4 +48,9 @@ class StateMachine implements Contracts\Proxy, Stringable
     {
         return (string) $this->enum->value;
     }
+
+    final public function jsonSerialize(): int|string
+    {
+        return $this->enum->jsonSerialize();
+    }
 }
