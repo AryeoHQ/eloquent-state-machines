@@ -20,6 +20,9 @@ class StateMachine implements Contracts\Proxy, Stringable
 {
     final public readonly Model $model;
 
+    /**
+     * @var TEnum
+     */
     final public readonly StateMachineable&BackedEnum $enum;
 
     final public function __construct(Model $model, StateMachineable&BackedEnum $enum)
