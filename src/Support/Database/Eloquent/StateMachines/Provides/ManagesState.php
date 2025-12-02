@@ -10,6 +10,9 @@ use Support\Database\Eloquent\StateMachines\Contracts\Proxy;
 use Support\Database\Eloquent\StateMachines\Triggers;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 
+/**
+ * @property-read static $enum The underlying enum instance
+ */
 trait ManagesState
 {
     use DefinesEvents;
