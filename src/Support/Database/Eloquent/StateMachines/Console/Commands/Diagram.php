@@ -123,9 +123,6 @@ class Diagram extends Command implements PromptsForMissingInput
         };
     }
 
-    /**
-     * @return array<int, array<int, mixed>>
-     */
     protected function getOptions(): array
     {
         return [
