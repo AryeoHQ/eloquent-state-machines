@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "brick/math",
-            "version": "0.14.7",
+            "version": "0.14.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/brick/math.git",
-                "reference": "07ff363b16ef8aca9692bba3be9e73fe63f34e50"
+                "reference": "63422359a44b7f06cae63c3b429b59e8efcc0629"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/brick/math/zipball/07ff363b16ef8aca9692bba3be9e73fe63f34e50",
-                "reference": "07ff363b16ef8aca9692bba3be9e73fe63f34e50",
+                "url": "https://api.github.com/repos/brick/math/zipball/63422359a44b7f06cae63c3b429b59e8efcc0629",
+                "reference": "63422359a44b7f06cae63c3b429b59e8efcc0629",
                 "shasum": ""
             },
             "require": {
@@ -56,7 +56,7 @@
             ],
             "support": {
                 "issues": "https://github.com/brick/math/issues",
-                "source": "https://github.com/brick/math/tree/0.14.7"
+                "source": "https://github.com/brick/math/tree/0.14.8"
             },
             "funding": [
                 {
@@ -64,7 +64,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-02-07T10:57:35+00:00"
+            "time": "2026-02-10T14:33:43+00:00"
         },
         {
             "name": "carbonphp/carbon-doctrine-types",
@@ -1054,16 +1054,16 @@
         },
         {
             "name": "laravel/framework",
-            "version": "v12.50.0",
+            "version": "v12.51.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/framework.git",
-                "reference": "174ffed91d794a35a541a5eb7c3785a02a34aaba"
+                "reference": "ce4de3feb211e47c4f959d309ccf8a2733b1bc16"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/framework/zipball/174ffed91d794a35a541a5eb7c3785a02a34aaba",
-                "reference": "174ffed91d794a35a541a5eb7c3785a02a34aaba",
+                "url": "https://api.github.com/repos/laravel/framework/zipball/ce4de3feb211e47c4f959d309ccf8a2733b1bc16",
+                "reference": "ce4de3feb211e47c4f959d309ccf8a2733b1bc16",
                 "shasum": ""
             },
             "require": {
@@ -1272,7 +1272,7 @@
                 "issues": "https://github.com/laravel/framework/issues",
                 "source": "https://github.com/laravel/framework"
             },
-            "time": "2026-02-04T18:34:13+00:00"
+            "time": "2026-02-10T18:20:19+00:00"
         },
         {
             "name": "laravel/prompts",
@@ -9119,16 +9119,16 @@
         },
         {
             "name": "phpstan/phpstan-phpunit",
-            "version": "2.0.13",
+            "version": "2.0.14",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpstan-phpunit.git",
-                "reference": "45bc1ad30669c3ebb19417d5c272b8104d155415"
+                "reference": "f7553d6c613878d04f7e7ef129d4607118cd7cd4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan-phpunit/zipball/45bc1ad30669c3ebb19417d5c272b8104d155415",
-                "reference": "45bc1ad30669c3ebb19417d5c272b8104d155415",
+                "url": "https://api.github.com/repos/phpstan/phpstan-phpunit/zipball/f7553d6c613878d04f7e7ef129d4607118cd7cd4",
+                "reference": "f7553d6c613878d04f7e7ef129d4607118cd7cd4",
                 "shasum": ""
             },
             "require": {
@@ -9169,9 +9169,9 @@
             ],
             "support": {
                 "issues": "https://github.com/phpstan/phpstan-phpunit/issues",
-                "source": "https://github.com/phpstan/phpstan-phpunit/tree/2.0.13"
+                "source": "https://github.com/phpstan/phpstan-phpunit/tree/2.0.14"
             },
-            "time": "2026-02-09T11:32:05+00:00"
+            "time": "2026-02-10T11:57:48+00:00"
         },
         {
             "name": "phpstan/phpstan-strict-rules",
