@@ -64,10 +64,11 @@ class TransitionUsingMustBeATrigger extends Rule
     }
 
     /**
-     * @return Collection<int, non-empty-string>
+     * @return Collection<int, string>
      */
     private function extractUsings(EnumCase $case): Collection
     {
+        /** @phpstan-ignore return.type */
         return collect($case->attrGroups)
             ->flatMap(fn (AttributeGroup $attrGroup) => $attrGroup->attrs)
             ->filter(fn (Attribute $attr): bool => $attr->name->toString() === Transition::class)
