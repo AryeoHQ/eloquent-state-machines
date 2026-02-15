@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Tests\Tooling\Rector\Rules;
 
 use PhpParser\Node\Stmt\Class_;
+use PhpParser\Node\Stmt\ClassMethod;
 use PHPUnit\Framework\Attributes\Test;
-use Rector\Config\RectorConfig;
-use Rector\DependencyInjection\LazyContainerFactory;
+use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 use Tests\TestCase;
 use Tests\Tooling\Concerns\GetsFixtures;
 use Tests\Tooling\Concerns\ParsesNodes;
+use Tests\Tooling\Concerns\ResolvesRectorRules;
 use Tooling\EloquentStateMachines\Rector\Rules\AddHandleMethodToTriggers;
 use Tooling\Rector\Rules\Provides\ValidatesInheritance;
 
@@ -18,16 +19,18 @@ class AddHandleMethodToTriggersTest extends TestCase
 {
     use GetsFixtures;
     use ParsesNodes;
+    use ResolvesRectorRules;
     use ValidatesInheritance;
 
-    private RectorConfig $rectorConfig;
-
-    protected function setUp(): void
+    #[Test]
+    public function it_has_rule_definition(): void
     {
-        parent::setUp();
+        $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
 
-        $this->rectorConfig = (new LazyContainerFactory)->create();
-        $this->rectorConfig->boot();
+        $ruleDefinition = $rule->getRuleDefinition();
+
+        $this->assertInstanceOf(RuleDefinition::class, $ruleDefinition);
+        $this->assertSame('Add handle() method stub to Trigger classes', $ruleDefinition->getDescription());
     }
 
     #[Test]
@@ -35,7 +38,7 @@ class AddHandleMethodToTriggersTest extends TestCase
     {
         $classNode = $this->getClassNode($this->getFixturePath('Rector/PlainClass.php'));
 
-        $rule = $this->rectorConfig->make(AddHandleMethodToTriggers::class);
+        $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
         $result = $rule->refactor($classNode);
 
         $this->assertNull($result);
@@ -46,7 +49,7 @@ class AddHandleMethodToTriggersTest extends TestCase
     {
         $classNode = $this->getClassNode($this->getFixturePath('PhpStan/Triggers/ValidTrigger.php'));
 
-        $rule = $this->rectorConfig->make(AddHandleMethodToTriggers::class);
+        $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
         $result = $rule->refactor($classNode);
 
         $this->assertNull($result);
@@ -59,9 +62,14 @@ class AddHandleMethodToTriggersTest extends TestCase
 
         $this->assertInstanceOf(Class_::class, $classNode);
 
-        $rule = $this->rectorConfig->make(AddHandleMethodToTriggers::class);
+        $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
         $result = $rule->refactor($classNode);
 
         $this->assertInstanceOf(Class_::class, $result);
+        $this->assertTrue(
+            collect($result->stmts)
+                ->filter(fn ($stmt) => $stmt instanceof ClassMethod)
+                ->contains(fn (ClassMethod $method) => $method->name->toString() === 'handle')
+        );
     }
 }

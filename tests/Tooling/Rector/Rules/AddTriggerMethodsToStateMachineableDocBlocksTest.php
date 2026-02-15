@@ -6,11 +6,11 @@ namespace Tests\Tooling\Rector\Rules;
 
 use PhpParser\Node\Stmt\Enum_;
 use PHPUnit\Framework\Attributes\Test;
-use Rector\Config\RectorConfig;
-use Rector\DependencyInjection\LazyContainerFactory;
+use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 use Tests\TestCase;
 use Tests\Tooling\Concerns\GetsFixtures;
 use Tests\Tooling\Concerns\ParsesNodes;
+use Tests\Tooling\Concerns\ResolvesRectorRules;
 use Tooling\EloquentStateMachines\Rector\Rules\AddTriggerMethodsToStateMachineableDocBlocks;
 use Tooling\Rector\Rules\Provides\ValidatesInheritance;
 
@@ -18,16 +18,18 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
 {
     use GetsFixtures;
     use ParsesNodes;
+    use ResolvesRectorRules;
     use ValidatesInheritance;
 
-    private RectorConfig $rectorConfig;
-
-    protected function setUp(): void
+    #[Test]
+    public function it_has_rule_definition(): void
     {
-        parent::setUp();
+        $rule = $this->resolveRule(AddTriggerMethodsToStateMachineableDocBlocks::class);
 
-        $this->rectorConfig = (new LazyContainerFactory)->create();
-        $this->rectorConfig->boot();
+        $ruleDefinition = $rule->getRuleDefinition();
+
+        $this->assertInstanceOf(RuleDefinition::class, $ruleDefinition);
+        $this->assertSame('Add trigger method doc blocks to StateMachineable enums', $ruleDefinition->getDescription());
     }
 
     #[Test]
@@ -35,7 +37,7 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
     {
         $enumNode = $this->getEnumNode($this->getFixturePath('Rector/PlainEnum.php'));
 
-        $rule = $this->rectorConfig->make(AddTriggerMethodsToStateMachineableDocBlocks::class);
+        $rule = $this->resolveRule(AddTriggerMethodsToStateMachineableDocBlocks::class);
         $result = $rule->refactor($enumNode);
 
         $this->assertNull($result);
@@ -50,9 +52,31 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
 
         $this->assertInstanceOf(Enum_::class, $enumNode);
 
-        $rule = $this->rectorConfig->make(AddTriggerMethodsToStateMachineableDocBlocks::class);
+        $rule = $this->resolveRule(AddTriggerMethodsToStateMachineableDocBlocks::class);
         $result = $rule->refactor($enumNode);
 
         $this->assertInstanceOf(Enum_::class, $result);
+
+        $docComment = $result->getDocComment();
+        $this->assertNotNull($docComment);
+        $this->assertStringContainsString('@method', $docComment->getText());
+    }
+
+    #[Test]
+    public function it_is_idempotent(): void
+    {
+        $enumNode = $this->getEnumNode(
+            $this->getFixturePath('../Support/Users/Status/Status.php')
+        );
+
+        $rule = $this->resolveRule(AddTriggerMethodsToStateMachineableDocBlocks::class);
+
+        $first = $rule->refactor($enumNode);
+        $second = $rule->refactor($first);
+
+        $this->assertInstanceOf(Enum_::class, $second);
+
+        $printer = new \PhpParser\PrettyPrinter\Standard;
+        $this->assertSame($printer->prettyPrint([$first]), $printer->prettyPrint([$second]));
     }
 }
