@@ -2,110 +2,60 @@
 
 declare(strict_types=1);
 
-namespace Tooling\EloquentStateMachines\PHPStan\Rules;
+namespace Tooling\EloquentStateMachines\PhpStan\Rules;
 
 use PhpParser\Node;
-use PhpParser\Node\Attribute;
-use PhpParser\Node\AttributeGroup;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\Analyser\Scope;
-use PHPStan\Rules\IdentifierRuleError;
-use PHPStan\Rules\Rule;
-use PHPStan\Rules\RuleErrorBuilder;
+use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
+use Tooling\PhpStan\Rules\Rule;
+use Tooling\Rules\Attributes\NodeType;
 
 /**
- * @implements Rule<Class_>
+ * @extends Rule<Class_>
  */
-class TriggerCannotHaveMultipleTargets implements Rule
+#[NodeType(Class_::class)]
+class TriggerCannotHaveMultipleTargets extends Rule
 {
-    public function getNodeType(): string
+    private readonly ReflectionProvider $reflectionProvider;
+
+    /** @var \Illuminate\Support\Collection<int, Property> */
+    private \Illuminate\Support\Collection $targetProperties;
+
+    public function __construct(ReflectionProvider $reflectionProvider)
     {
-        return Class_::class;
+        $this->reflectionProvider = $reflectionProvider;
     }
 
-    /**
-     * @param  Class_  $node
-     */
-    public function processNode(Node $node, Scope $scope): array
+    public function prepare(Node $node, Scope $scope): void
     {
-        return $this->passes($node) ? [] : $this->buildErrors($node);
+        $this->targetProperties = collect($node->stmts)
+            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof Property)
+            ->filter(fn (Property $property): bool => $this->hasAttribute($property, Target::class));
     }
 
-    private function passes(Class_ $node): bool
+    public function shouldHandle(Node $node, Scope $scope): bool
     {
-        return ! $this->violated($node);
-    }
-
-    private function violated(Class_ $node): bool
-    {
-        $className = $node->namespacedName?->toString() ?? '';
-        if (str($className)->is('Tests\\*Fixtures\\*')) {
-            return false;
-        }
-
         if ($node->isAbstract()) {
             return false;
         }
 
-        if (! $this->extendsTrigger($node)) {
-            return false;
-        }
-
-        return $this->hasMultipleTargetProperties($node);
+        return $this->inherits($node, Trigger::class, $this->reflectionProvider)
+            && $this->targetProperties->count() > 1;
     }
 
-    private function extendsTrigger(Class_ $node): bool
+    public function handle(Node $node, Scope $scope): void
     {
-        if ($node->extends === null) {
-            return false;
-        }
-
-        $parentClassName = $node->extends->toString();
-
-        return $parentClassName === Trigger::class || str_ends_with($parentClassName, 'Trigger');
-    }
-
-    private function hasMultipleTargetProperties(Class_ $node): bool
-    {
-        return $this->getTargetProperties($node)->count() > 1;
-    }
-
-    /**
-     * @return \Illuminate\Support\Collection<int, Property>
-     */
-    private function getTargetProperties(Class_ $node): \Illuminate\Support\Collection
-    {
-        return collect($node->stmts)
-            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof Property)
-            ->filter(fn (Property $property): bool => $this->hasTargetAttribute($property));
-    }
-
-    private function hasTargetAttribute(Property $property): bool
-    {
-        return collect($property->attrGroups)
-            ->flatMap(fn (AttributeGroup $attrGroup) => $attrGroup->attrs)
-            ->contains(fn (Attribute $attr): bool => $attr->name->toString() === Target::class);
-    }
-
-    /**
-     * @return array<array-key, IdentifierRuleError>
-     */
-    private function buildErrors(Class_ $node): array
-    {
-        $className = $node->namespacedName?->toString() ?? $node->name?->toString() ?? 'Unknown';
-
-        return $this->getTargetProperties($node)
-            ->map(fn (Property $property): IdentifierRuleError => RuleErrorBuilder::message(
-                'Only one property with #[Target] attribute permitted.'
+        $this->targetProperties->each(
+            fn (Property $property) => $this->error(
+                'Only one property with #[Target] attribute permitted.',
+                $this->getPropertyLine($property),
+                'eloquentStateMachines.triggerCannotHaveDuplicateTargetProperties'
             )
-                ->identifier('eloquentStateMachines.triggerCannotHaveDuplicateTargetProperties')
-                ->line($this->getPropertyLine($property))
-                ->build()
-            )
-            ->all();
+        );
     }
 
     private function getPropertyLine(Property $property): int

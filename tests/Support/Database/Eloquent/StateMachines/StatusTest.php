@@ -8,8 +8,8 @@ use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\NotDefined;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
-use Tests\Fixtures\Users\Status\EventsNotDefined;
-use Tests\Fixtures\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Tooling\PhpStan\StateMachines\MissingEventsAttribute;
 use Tests\TestCase;
 
 class StatusTest extends TestCase
@@ -38,6 +38,6 @@ class StatusTest extends TestCase
     {
         $this->expectException(NotDefined::class);
 
-        EventsNotDefined::Pending->events();
+        MissingEventsAttribute::Pending->events();
     }
 }

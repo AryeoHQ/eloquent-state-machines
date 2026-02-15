@@ -39,7 +39,7 @@
         "phpstan/phpdoc-parser": "^2.3",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "^0.0.7",
+        "aryeo/tooling-laravel": "dev-streamline-rector-base-rule",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7"
     },

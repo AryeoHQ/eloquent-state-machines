@@ -7,8 +7,8 @@ namespace Tests\Support\Database\Eloquent\StateMachines\Events;
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\NotFound;
-use Tests\Fixtures\Users\Status\Events\Activated;
-use Tests\Fixtures\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\Activated;
+use Tests\Fixtures\Support\Users\Status\Events\Activating;
 use Tests\TestCase;
 
 class EventsTest extends TestCase

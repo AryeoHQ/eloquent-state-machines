@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tooling\EloquentStateMachines\PHPStan\Support;
+namespace Tooling\EloquentStateMachines\PhpStan\Support;
 
 class CaseTriggers
 {

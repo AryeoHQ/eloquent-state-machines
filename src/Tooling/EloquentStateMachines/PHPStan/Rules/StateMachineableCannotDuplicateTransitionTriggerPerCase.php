@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Tooling\EloquentStateMachines\PHPStan\Rules;
+namespace Tooling\EloquentStateMachines\PhpStan\Rules;
 
+use Illuminate\Support\Collection;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Attribute;
@@ -12,95 +13,54 @@ use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\Node\Stmt\EnumCase;
 use PHPStan\Analyser\Scope;
-use PHPStan\Rules\IdentifierRuleError;
-use PHPStan\Rules\Rule;
-use PHPStan\Rules\RuleErrorBuilder;
+use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
-use Tooling\EloquentStateMachines\PHPStan\Support\CaseTriggers;
+use Tooling\EloquentStateMachines\PhpStan\Support\CaseTriggers;
+use Tooling\PhpStan\Rules\Rule;
+use Tooling\Rules\Attributes\NodeType;
 
 /**
- * @implements Rule<Enum_>
+ * @extends Rule<Enum_>
  */
-class StateMachineableCannotDuplicateTransitionTriggerPerCase implements Rule
+#[NodeType(Enum_::class)]
+class StateMachineableCannotDuplicateTransitionTriggerPerCase extends Rule
 {
-    public function getNodeType(): string
+    private readonly ReflectionProvider $reflectionProvider;
+
+    /** @var Collection<(int|string), object{case: EnumCase, triggers: CaseTriggers}&\stdClass> */
+    private Collection $duplicates;
+
+    public function __construct(ReflectionProvider $reflectionProvider)
     {
-        return Enum_::class;
+        $this->reflectionProvider = $reflectionProvider;
     }
 
-    /**
-     * @param  Enum_  $node
-     */
-    public function processNode(Node $node, Scope $scope): array
+    public function prepare(Node $node, Scope $scope): void
     {
-        return $this->passes($node) ? [] : $this->buildErrors($node);
-    }
-
-    private function passes(Enum_ $node): bool
-    {
-        return ! $this->violated($node);
-    }
-
-    private function violated(Enum_ $node): bool
-    {
-        $className = $node->namespacedName?->toString() ?? '';
-        if (str($className)->is('Tests\\*Fixtures\\*')) {
-            return false;
-        }
-
-        if (! $this->implementsStateMachineable($node)) {
-            return false;
-        }
-
-        return $this->hasDuplicateTransitionTriggers($node);
-    }
-
-    private function implementsStateMachineable(Enum_ $node): bool
-    {
-        return collect($node->implements)
-            ->map(fn (Node\Name $implement): string => $implement->toString())
-            ->contains(StateMachineable::class);
-    }
-
-    private function hasDuplicateTransitionTriggers(Enum_ $node): bool
-    {
-        return collect($node->stmts)
+        $this->duplicates = collect($node->stmts)
             ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof EnumCase)
-            ->contains(fn (EnumCase $case): bool => $this->caseLookup($case)->hasDuplicates());
+            ->map(fn (EnumCase $case): object => (object) ['case' => $case, 'triggers' => $this->caseLookup($case)])
+            ->filter(fn (object $item): bool => $item->triggers->hasDuplicates());
     }
 
-    /**
-     * @return array<array-key, IdentifierRuleError>
-     */
-    private function buildErrors(Enum_ $node): array
+    public function shouldHandle(Node $node, Scope $scope): bool
     {
-        return collect($node->stmts)
-            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof EnumCase)
-            ->flatMap(fn (EnumCase $case): array => $this->buildErrorsForCase($case))
-            ->all();
+        return $this->inherits($node, StateMachineable::class, $this->reflectionProvider)
+            && $this->duplicates->isNotEmpty();
     }
 
-    /**
-     * @return array<array-key, IdentifierRuleError>
-     */
-    private function buildErrorsForCase(EnumCase $case): array
+    public function handle(Node $node, Scope $scope): void
     {
-        $lookup = $this->caseLookup($case);
-
-        if (! $lookup->hasDuplicates()) {
-            return [];
-        }
-
-        return $lookup->duplicates()
-            ->map(fn (string $trigger): IdentifierRuleError => RuleErrorBuilder::message(
-                "[$trigger] duplicated: A trigger can only be used once per case."
-            )
-                ->identifier('eloquentStateMachines.stateMachineableDuplicateTransitionTriggerPerCase')
-                ->line($case->name->getStartLine())
-                ->build()
-            )
-            ->all();
+        $this->duplicates->each(function (object $item): void {
+            $item->triggers->duplicates()->each(
+                fn (string $trigger) => $this->error(
+                    "[$trigger] duplicated: A trigger can only be used once per case.",
+                    $item->case->name->getStartLine(),
+                    'eloquentStateMachines.stateMachineableDuplicateTransitionTriggerPerCase'
+                )
+            );
+        });
     }
 
     private function caseLookup(EnumCase $case): CaseTriggers

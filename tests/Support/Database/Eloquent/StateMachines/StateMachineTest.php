@@ -9,9 +9,9 @@ use Support\Database\Eloquent\StateMachines\StateMachine;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\Duplicate;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\Invalid;
-use Tests\Fixtures\Users\Status\DuplicateTrigger;
-use Tests\Fixtures\Users\Status\Status;
-use Tests\Fixtures\Users\User;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Support\Users\User;
+use Tests\Fixtures\Tooling\PhpStan\StateMachines\DuplicateTransitionTrigger;
 use Tests\TestCase;
 
 class StateMachineTest extends TestCase
@@ -66,7 +66,7 @@ class StateMachineTest extends TestCase
     {
         $this->expectException(Duplicate::class);
 
-        $stateMachine = StateMachine::make(User::make(), DuplicateTrigger::Registered);
+        $stateMachine = StateMachine::make(User::make(), DuplicateTransitionTrigger::Active);
 
         $stateMachine->activate();
     }
