@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "37ef8283f34e066af94036bc39b2243d",
+    "content-hash": "cff5949650aecbe83e5dd814e8531e30",
     "packages": [
         {
             "name": "brick/math",
@@ -6016,16 +6016,16 @@
     "packages-dev": [
         {
             "name": "aryeo/tooling-laravel",
-            "version": "0.0.13",
+            "version": "dev-method-assurance",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AryeoHQ/tooling-laravel.git",
-                "reference": "2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72"
+                "reference": "0aca03dd29c5398c4bf0cd64fecd116526d49ab2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72",
-                "reference": "2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72",
+                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/0aca03dd29c5398c4bf0cd64fecd116526d49ab2",
+                "reference": "0aca03dd29c5398c4bf0cd64fecd116526d49ab2",
                 "shasum": ""
             },
             "require": {
@@ -6094,10 +6094,10 @@
             ],
             "description": "Development tooling for Laravel",
             "support": {
-                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/0.0.13",
+                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/method-assurance",
                 "issues": "https://github.com/AryeoHQ/tooling-laravel/issues"
             },
-            "time": "2026-02-16T17:40:47+00:00"
+            "time": "2026-02-16T21:42:41+00:00"
         },
         {
             "name": "brianium/paratest",
@@ -11622,7 +11622,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "aryeo/tooling-laravel": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
