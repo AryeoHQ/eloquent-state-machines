@@ -41,9 +41,7 @@ final class AddStateMachineablePropertiesToModelDocBlocks extends Rule
 
     public function shouldHandle(Node $node): bool
     {
-        $class = $this->getName($node);
-
-        return $class !== null && is_subclass_of($class, Model::class, true);
+        return $this->inherits($node, Model::class);
     }
 
     public function handle(Node $node): Node
