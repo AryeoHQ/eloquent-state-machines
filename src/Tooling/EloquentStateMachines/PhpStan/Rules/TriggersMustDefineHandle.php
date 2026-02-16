@@ -6,7 +6,6 @@ namespace Tooling\EloquentStateMachines\PhpStan\Rules;
 
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
-use PhpParser\Node\Stmt\ClassMethod;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
@@ -33,7 +32,7 @@ class TriggersMustDefineHandle extends Rule
         }
 
         return $this->inherits($node, Trigger::class, $this->reflectionProvider)
-            && ! $this->hasHandleMethod($node);
+            && ! $this->hasMethod($node, 'handle', $this->reflectionProvider);
     }
 
     public function handle(Node $node, Scope $scope): void
@@ -43,12 +42,5 @@ class TriggersMustDefineHandle extends Rule
             $node->name->getStartLine(),
             'eloquentStateMachines.triggerMustDefineHandle'
         );
-    }
-
-    private function hasHandleMethod(Class_ $node): bool
-    {
-        return collect($node->stmts)
-            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof ClassMethod)
-            ->contains(fn (ClassMethod $method): bool => $method->name->toString() === 'handle');
     }
 }

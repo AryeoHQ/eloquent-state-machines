@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Tooling\EloquentStateMachines\Rector\Rules;
 
-use PhpParser\Modifiers;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
-use PhpParser\Node\Stmt\ClassMethod;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Tooling\Rector\Rules\Definitions\Attributes\Definition;
 use Tooling\Rector\Rules\Rule;
@@ -33,26 +31,11 @@ final class AddHandleMethodToTriggers extends Rule
         }
 
         return $this->inherits($node, Trigger::class)
-            && ! $this->hasHandleMethod($node);
+            && ! $this->hasMethod($node, 'handle');
     }
 
     public function handle(Node $node): Node
     {
-        $handleMethod = new ClassMethod('handle', [
-            'flags' => Modifiers::PUBLIC,
-            'returnType' => new Node\Identifier('void'),
-            'stmts' => [],
-        ]);
-
-        $node->stmts[] = $handleMethod;
-
-        return $node;
-    }
-
-    private function hasHandleMethod(Class_ $node): bool
-    {
-        return collect($node->stmts)
-            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof ClassMethod)
-            ->contains(fn (ClassMethod $method): bool => $method->name->toString() === 'handle');
+        return $this->ensureMethodIsDefined($node, 'handle', 'void');
     }
 }
