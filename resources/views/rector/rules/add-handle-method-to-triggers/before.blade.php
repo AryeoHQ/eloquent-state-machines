@@ -1,5 +1,5 @@
 @verbatim
-class MyTrigger extends Trigger
+class Activate extends Trigger
 {
     #[Target]
     protected readonly User $user;
