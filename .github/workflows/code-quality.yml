@@ -35,6 +35,7 @@ jobs:
         uses: ./.github/actions/setup-php
         with:
           extensions: tokenizer, opcache, pcntl, sockets, zip
+          coverage: none
 
       - name: Prepare Testbench cache dir
         run: |
