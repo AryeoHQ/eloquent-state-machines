@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tooling\EloquentStateMachines\PhpStan\Rules;
 
+use Illuminate\Support\Collection;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\Node\Stmt\EnumCase;
@@ -22,21 +23,30 @@ class StateMachineableCasesMustHaveEventsAttribute extends Rule
 {
     private readonly ReflectionProvider $reflectionProvider;
 
+    /** @var Collection<int, EnumCase> */
+    private Collection $casesWithoutEventsAttribute;
+
     public function __construct(ReflectionProvider $reflectionProvider)
     {
         $this->reflectionProvider = $reflectionProvider;
     }
 
+    public function prepare(Node $node, Scope $scope): void
+    {
+        $this->casesWithoutEventsAttribute = collect($node->stmts)
+            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof EnumCase)
+            ->filter(fn (EnumCase $case): bool => ! $this->hasAttribute($case, Events::class));
+    }
+
     public function shouldHandle(Node $node, Scope $scope): bool
     {
-        return $this->inherits($node, StateMachineable::class, $this->reflectionProvider);
+        return $this->inherits($node, StateMachineable::class, $this->reflectionProvider)
+            && $this->casesWithoutEventsAttribute->isNotEmpty();
     }
 
     public function handle(Node $node, Scope $scope): void
     {
-        collect($node->stmts)
-            ->filter(fn (Node\Stmt $stmt): bool => $stmt instanceof EnumCase)
-            ->filter(fn (EnumCase $case): bool => ! $this->hasAttribute($case, Events::class))
+        $this->casesWithoutEventsAttribute
             ->each(fn (EnumCase $case) => $this->error(
                 '#[Events] attribute required on [StateMachineable] cases.',
                 $case->name->getStartLine(),

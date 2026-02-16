@@ -42,7 +42,7 @@
         "orchestra/testbench": "^10.6",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "dev-make-prepare-hook-for-rules-more-safe",
+        "aryeo/tooling-laravel": "0.0.13",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7",
         "symplify/rule-doc-generator-contracts": "^11.2"

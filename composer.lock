@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "62c87a70c5de828cbde7b3352795fe7f",
+    "content-hash": "37ef8283f34e066af94036bc39b2243d",
     "packages": [
         {
             "name": "brick/math",
@@ -6016,16 +6016,16 @@
     "packages-dev": [
         {
             "name": "aryeo/tooling-laravel",
-            "version": "dev-make-prepare-hook-for-rules-more-safe",
+            "version": "0.0.13",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AryeoHQ/tooling-laravel.git",
-                "reference": "acba77e7d1dbc6a1cdff03034fe67487beed4b58"
+                "reference": "2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/acba77e7d1dbc6a1cdff03034fe67487beed4b58",
-                "reference": "acba77e7d1dbc6a1cdff03034fe67487beed4b58",
+                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72",
+                "reference": "2d5b1e8c5f2f2b36f9e127e5e3d9636610b0bc72",
                 "shasum": ""
             },
             "require": {
@@ -6094,10 +6094,10 @@
             ],
             "description": "Development tooling for Laravel",
             "support": {
-                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/make-prepare-hook-for-rules-more-safe",
+                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/0.0.13",
                 "issues": "https://github.com/AryeoHQ/tooling-laravel/issues"
             },
-            "time": "2026-02-16T16:52:25+00:00"
+            "time": "2026-02-16T17:40:47+00:00"
         },
         {
             "name": "brianium/paratest",
@@ -11622,14 +11622,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "aryeo/tooling-laravel": 20
-    },
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.4"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.6.0"
+    "plugin-api-version": "2.9.0"
 }
