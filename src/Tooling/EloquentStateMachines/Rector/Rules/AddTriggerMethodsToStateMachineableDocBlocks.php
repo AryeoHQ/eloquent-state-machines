@@ -11,7 +11,6 @@ use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\Comments\NodeDocBlock\DocBlockUpdater;
-use Rector\Rector\AbstractRector;
 use ReflectionEnum;
 use ReflectionEnumBackedCase;
 use ReflectionEnumUnitCase;
@@ -20,32 +19,44 @@ use Support\Database\Eloquent\StateMachines\Contracts\StateMachine;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Provides\ManagesState;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
-use Tooling\Rector\Support\Nodes\Method;
+use Tooling\Nodes\Method;
+use Tooling\Rector\Rules\Definitions\Attributes\Definition;
+use Tooling\Rector\Rules\Rule;
+use Tooling\Rector\Rules\Samples\Attributes\Sample;
+use Tooling\Rules\Attributes\NodeType;
 
-final class AddTriggerMethodsToStateMachineableDocBlocks extends AbstractRector
+/**
+ * @extends Rule<Enum_>
+ */
+#[Definition('Add trigger method doc blocks to StateMachineable enums')]
+#[NodeType(Enum_::class)]
+#[Sample('state-machines.rector.rules.samples')]
+final class AddTriggerMethodsToStateMachineableDocBlocks extends Rule
 {
-    public function getNodeTypes(): array
-    {
-        return [Enum_::class];
-    }
+    public PhpDocInfoFactory $phpDocInfoFactory;
 
-    public function __construct(public PhpDocInfoFactory $phpDocInfoFactory, public DocBlockUpdater $docBlockUpdater)
+    public DocBlockUpdater $docBlockUpdater;
+
+    public function __construct(PhpDocInfoFactory $phpDocInfoFactory, DocBlockUpdater $docBlockUpdater)
     {
         $this->phpDocInfoFactory = $phpDocInfoFactory;
         $this->docBlockUpdater = $docBlockUpdater;
     }
 
-    public function refactor(Node $node): null|Node
+    public function shouldHandle(Node $node): bool
     {
-        assert($node instanceof Enum_);
-
-        if ($this->shouldNotRun($node)) {
-            return null;
+        if (! $node instanceof Enum_) {
+            return false;
         }
 
+        return $this->inherits($node, ManagesState::class)
+            && $this->inherits($node, StateMachine::class);
+    }
+
+    public function handle(Node $node): Node
+    {
         $docBlock = $this->prepareDocBlock($node);
 
-        /** @phpstan-ignore-next-line Higher order proxy confuses PHPStan */
         $this->methods($node)->map(
             fn (Method $method) => $method->alias([
                 'name' => str(class_basename($method->of))->camel()->toString(),
@@ -58,26 +69,6 @@ final class AddTriggerMethodsToStateMachineableDocBlocks extends AbstractRector
         $this->docBlockUpdater->updateRefactoredNodeWithPhpDocInfo($node);
 
         return $node;
-    }
-
-    private function shouldRun(Enum_ $node): bool
-    {
-        $hasTrait = collect($node->stmts ?? [])
-            ->filter(fn ($stmt) => $stmt instanceof \PhpParser\Node\Stmt\TraitUse)
-            ->flatMap(fn ($traitUse) => $traitUse->traits)
-            ->filter(fn ($trait) => $this->getName($trait) === ManagesState::class)
-            ->isNotEmpty();
-
-        $hasInterface = collect($node->implements)->filter(
-            fn ($interface): bool => is_a($this->getName($interface), StateMachine::class, true)
-        )->isNotEmpty();
-
-        return $hasTrait && $hasInterface;
-    }
-
-    private function shouldNotRun(Enum_ $node): bool
-    {
-        return ! $this->shouldRun($node);
     }
 
     private function prepareDocBlock(Enum_ $node): PhpDocInfo

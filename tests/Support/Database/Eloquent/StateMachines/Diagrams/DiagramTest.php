@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\File;
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Diagrams\Diagram;
 use Support\Database\Eloquent\StateMachines\Diagrams\Direction;
-use Tests\Fixtures\Users\Status\EventsNotDefined;
-use Tests\Fixtures\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Tooling\PhpStan\StateMachines\MissingEventsAttribute;
 use Tests\TestCase;
 
 class DiagramTest extends TestCase
@@ -57,12 +57,12 @@ class DiagramTest extends TestCase
     {
         $path = '/tmp/diagram.md';
         $content = <<<'MD'
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
         ```mermaid
         stateDiagram-v2
             direction LR
         ```
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
         MD;
 
         File::expects('exists')->with($path)->andReturnTrue();
@@ -98,15 +98,15 @@ class DiagramTest extends TestCase
     public function can_update(): void
     {
         $current = <<<'MD'
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
         MD;
 
         $updated = new Diagram(Status::class, Direction::LeftToRight)->update($current)->toString();
 
-        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Users\Status\Status:start -->', $updated);
-        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Users\Status\Status:end -->', $updated);
-        $this->assertStringContainsString('**`Tests\Fixtures\Users\Status\Status`**', $updated);
+        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->', $updated);
+        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->', $updated);
+        $this->assertStringContainsString('**`Tests\Fixtures\Support\Users\Status\Status`**', $updated);
         $this->assertStringContainsString('```mermaid', $updated);
         $this->assertStringContainsString('stateDiagram-v2', $updated);
         $this->assertStringContainsString('direction LR', $updated);
@@ -133,37 +133,37 @@ class DiagramTest extends TestCase
     public function can_update_to_converted(): void
     {
         $current = <<<'MD'
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
         MD;
 
-        $updated = new Diagram(Status::class, Direction::LeftToRight)->convertTo(EventsNotDefined::class)->update($current)->toString();
+        $updated = new Diagram(Status::class, Direction::LeftToRight)->convertTo(MissingEventsAttribute::class)->update($current)->toString();
 
-        $this->assertStringNotContainsString('Tests\Fixtures\Users\Status\Status', $updated);
-        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Users\Status\EventsNotDefined:start -->', $updated);
-        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Users\Status\EventsNotDefined:end -->', $updated);
-        $this->assertStringContainsString('**`Tests\Fixtures\Users\Status\EventsNotDefined`**', $updated);
+        $this->assertStringNotContainsString('Tests\Fixtures\Support\Users\Status\Status', $updated);
+        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Tooling\PhpStan\StateMachines\MissingEventsAttribute:start -->', $updated);
+        $this->assertStringContainsString('<!-- diagram:Tests\Fixtures\Tooling\PhpStan\StateMachines\MissingEventsAttribute:end -->', $updated);
+        $this->assertStringContainsString('**`Tests\Fixtures\Tooling\PhpStan\StateMachines\MissingEventsAttribute`**', $updated);
         $this->assertStringContainsString('```mermaid', $updated);
         $this->assertStringContainsString('stateDiagram-v2', $updated);
         $this->assertStringContainsString('direction LR', $updated);
-        $this->assertStringContainsString('[*] --> Pending', $updated);
-        $this->assertStringNotContainsString('Pending -->', $updated);
+        $this->assertStringContainsString('[*] --> Active', $updated);
+        $this->assertStringNotContainsString('Active -->', $updated);
     }
 
     #[Test]
     public function can_be_removed(): void
     {
         $current = <<<'MD'
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
         MD;
 
         $updated = (new Diagram(Status::class, Direction::LeftToRight))->markForRemoval()->update($current)->toString();
 
-        $this->assertStringNotContainsString('Tests\Fixtures\Users\Status\Status', $updated);
-        $this->assertStringNotContainsString('<!-- diagram:Tests\Fixtures\Users\Status\Status:start -->', $updated);
-        $this->assertStringNotContainsString('<!-- diagram:Tests\Fixtures\Users\Status\Status:end -->', $updated);
-        $this->assertStringNotContainsString('**`Tests\Fixtures\Users\Status\Status`**', $updated);
+        $this->assertStringNotContainsString('Tests\Fixtures\Support\Users\Status\Status', $updated);
+        $this->assertStringNotContainsString('<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->', $updated);
+        $this->assertStringNotContainsString('<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->', $updated);
+        $this->assertStringNotContainsString('**`Tests\Fixtures\Support\Users\Status\Status`**', $updated);
         $this->assertStringNotContainsString('```mermaid', $updated);
         $this->assertStringNotContainsString('stateDiagram-v2', $updated);
         $this->assertStringNotContainsString('direction LR', $updated);
@@ -175,8 +175,8 @@ class DiagramTest extends TestCase
     {
         $path = '/tmp/diagram.md';
         $content = <<<'MD'
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
-        <!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
+        <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
         MD;
 
         $expected = new Diagram(Status::class, Direction::LeftToRight)->update($content)->toString();

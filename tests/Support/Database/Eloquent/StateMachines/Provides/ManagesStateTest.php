@@ -7,7 +7,7 @@ namespace Tests\Support\Database\Eloquent\StateMachines\Provides;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionEnum;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotAccessible;
-use Tests\Fixtures\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\TestCase;
 use ValueError;
 

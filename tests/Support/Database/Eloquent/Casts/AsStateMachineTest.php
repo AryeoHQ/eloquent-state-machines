@@ -6,8 +6,8 @@ namespace Tests\Support\Database\Eloquent\Casts;
 
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Contracts;
-use Tests\Fixtures\Users\Status\Status;
-use Tests\Fixtures\Users\User;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Support\Users\User;
 use Tests\TestCase;
 
 class AsStateMachineTest extends TestCase

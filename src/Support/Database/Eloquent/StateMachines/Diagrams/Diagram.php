@@ -42,7 +42,7 @@ final class Diagram
         $blockPattern = '/(diagram:([^:\s]+):start[\s\S]*?diagram:\2:end)/m';  // group1 = whole block, group2 = id
         $directionPattern = '/^\s*direction\s+([A-Za-z-]+)\b/im';
 
-        return $content->matchAll($blockPattern)->map(function (string $block) use ($directionPattern) {
+        $diagrams = $content->matchAll($blockPattern)->map(function (string $block) use ($directionPattern) {
             $class = Str::of($block)->match('/^diagram:([^:\s]+):start/m')->toString();
             $direction = Str::of($block)->match($directionPattern)->toString();
 
@@ -50,7 +50,10 @@ final class Diagram
                 class: $class,
                 direction: Direction::tryFrom($direction) ?? Direction::LeftToRight,
             );
-        })->unique->current;
+        });
+
+        /** @phpstan-ignore return.type (Higher order proxy confuses PHPStan) */
+        return $diagrams->unique->current;
     }
 
     /**

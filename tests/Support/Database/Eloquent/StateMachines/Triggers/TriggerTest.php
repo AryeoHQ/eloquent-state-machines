@@ -9,17 +9,17 @@ use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions;
 use Support\Database\Eloquent\StateMachines\Triggers\Target;
-use Tests\Fixtures\Users\Status\Status;
-use Tests\Fixtures\Users\Status\Triggers\Activate;
-use Tests\Fixtures\Users\Status\Triggers\Deactivate;
-use Tests\Fixtures\Users\Status\Triggers\Exceptions\Unprocessable;
-use Tests\Fixtures\Users\Status\Triggers\HandleNotDefined;
-use Tests\Fixtures\Users\Status\Triggers\MultipleTargetsDefined;
-use Tests\Fixtures\Users\Status\Triggers\Suspend;
-use Tests\Fixtures\Users\Status\Triggers\TargetNotDefined;
-use Tests\Fixtures\Users\Status\Triggers\TargetNotModel;
-use Tests\Fixtures\Users\Status\Triggers\ThrowsException;
-use Tests\Fixtures\Users\User;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
+use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
+use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
+use Tests\Fixtures\Support\Users\User;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\HandleNotDefined;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\MissingTarget;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\MultipleTargets;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\TargetNotModel;
 use Tests\TestCase;
 
 class TriggerTest extends TestCase
@@ -35,7 +35,7 @@ class TriggerTest extends TestCase
     {
         $this->expectException(Target\Exceptions\NotDefined::class);
 
-        $trigger = TargetNotDefined::make();
+        $trigger = MissingTarget::make();
 
         $reflection = new \ReflectionMethod($trigger, 'target');
         $reflection->setAccessible(true);
@@ -47,7 +47,7 @@ class TriggerTest extends TestCase
     {
         $this->expectException(Target\Exceptions\MultipleDefined::class);
 
-        $trigger = MultipleTargetsDefined::make();
+        $trigger = MultipleTargets::make();
 
         $reflection = new \ReflectionMethod($trigger, 'target');
         $reflection->setAccessible(true);
