@@ -52,7 +52,7 @@ final class Diagram
             );
         });
 
-        /** @phpstan-ignore return.type (Higher order proxy confuses PHPStan) */
+        /** @phpstan-ignore return.type */
         return $diagrams->unique->current;
     }
 

@@ -32,6 +32,7 @@ class Diagram extends Command implements PromptsForMissingInput
     private Collection $stateMachineables {
         get => $this->stateMachineables ??= $this->composer->classMap
             ->reject(fn (string $path) => str_contains($path, '/vendor/'))
+            ->reject(fn (string $path, string $class) => str($class)->is('Tests\\*'))
             ->filter(fn (string $path, string $class) => rescue(fn () => is_subclass_of($class, StateMachineable::class), false, false))
             ->map(
                 fn (string $path, string $class) => str(View::make('state-machine::diagram', [
@@ -89,6 +90,12 @@ class Diagram extends Command implements PromptsForMissingInput
 
     private function handleDisplay(): int
     {
+        if ($this->stateMachineables->isEmpty()) {
+            $this->info('No state machines found.');
+
+            return self::SUCCESS;
+        }
+
         $this->stateMachineables->each(function (Stringable $diagram, string $class) {
             $this->info($diagram->toString());
         });
