@@ -11,16 +11,14 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 use Tests\TestCase;
 use Tests\Tooling\Concerns\GetsFixtures;
 use Tooling\EloquentStateMachines\Rector\Rules\AddHandleMethodToTriggers;
-use Tooling\Rector\Rules\Provides\ValidatesInheritance;
-use Tooling\Rector\Testing\ParsesNodes;
+use Tooling\Rector\Testing\ParsesNodesWithScope;
 use Tooling\Rector\Testing\ResolvesRectorRules;
 
 class AddHandleMethodToTriggersTest extends TestCase
 {
     use GetsFixtures;
-    use ParsesNodes;
+    use ParsesNodesWithScope;
     use ResolvesRectorRules;
-    use ValidatesInheritance;
 
     #[Test]
     public function it_has_rule_definition(): void
@@ -36,7 +34,7 @@ class AddHandleMethodToTriggersTest extends TestCase
     #[Test]
     public function it_does_not_refactor_non_trigger_classes(): void
     {
-        $classNode = $this->getClassNode($this->getFixturePath('Rector/PlainClass.php'));
+        $classNode = $this->getClassNodeWithScope($this->getFixturePath('Rector/PlainClass.php'));
 
         $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
         $result = $rule->refactor($classNode);
@@ -47,7 +45,7 @@ class AddHandleMethodToTriggersTest extends TestCase
     #[Test]
     public function it_does_not_refactor_triggers_with_handle(): void
     {
-        $classNode = $this->getClassNode($this->getFixturePath('PhpStan/Triggers/ValidTrigger.php'));
+        $classNode = $this->getClassNodeWithScope($this->getFixturePath('PhpStan/Triggers/ValidTrigger.php'));
 
         $rule = $this->resolveRule(AddHandleMethodToTriggers::class);
         $result = $rule->refactor($classNode);
@@ -58,7 +56,7 @@ class AddHandleMethodToTriggersTest extends TestCase
     #[Test]
     public function it_adds_handle_method_to_trigger_without_one(): void
     {
-        $classNode = $this->getClassNode($this->getFixturePath('PhpStan/Triggers/HandleNotDefined.php'));
+        $classNode = $this->getClassNodeWithScope($this->getFixturePath('PhpStan/Triggers/HandleNotDefined.php'));
 
         $this->assertInstanceOf(Class_::class, $classNode);
 

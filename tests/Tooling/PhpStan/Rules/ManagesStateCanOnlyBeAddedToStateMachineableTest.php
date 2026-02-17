@@ -19,9 +19,7 @@ class ManagesStateCanOnlyBeAddedToStateMachineableTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new ManagesStateCanOnlyBeAddedToStateMachineable(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new ManagesStateCanOnlyBeAddedToStateMachineable;
     }
 
     #[Test]

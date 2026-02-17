@@ -19,9 +19,7 @@ class TriggerTargetMustBeAModelTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new TriggerTargetMustBeAModel(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new TriggerTargetMustBeAModel;
     }
 
     #[Test]

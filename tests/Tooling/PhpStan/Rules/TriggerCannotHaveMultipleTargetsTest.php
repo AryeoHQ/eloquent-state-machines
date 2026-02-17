@@ -19,9 +19,7 @@ class TriggerCannotHaveMultipleTargetsTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new TriggerCannotHaveMultipleTargets(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new TriggerCannotHaveMultipleTargets;
     }
 
     #[Test]

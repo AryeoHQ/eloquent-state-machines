@@ -7,7 +7,6 @@ namespace Tooling\EloquentStateMachines\PhpStan\Rules;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Tooling\PhpStan\Rules\Rule;
 use Tooling\Rules\Attributes\NodeType;
@@ -18,21 +17,14 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Class_::class)]
 class TriggersMustDefineHandle extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
-
     public function shouldHandle(Node $node, Scope $scope): bool
     {
         if ($node->isAbstract()) {
             return false;
         }
 
-        return $this->inherits($node, Trigger::class, $this->reflectionProvider)
-            && ! $this->hasMethod($node, 'handle', $this->reflectionProvider);
+        return $this->inherits($node, Trigger::class)
+            && ! $this->hasMethod($node, 'handle');
     }
 
     public function handle(Node $node, Scope $scope): void

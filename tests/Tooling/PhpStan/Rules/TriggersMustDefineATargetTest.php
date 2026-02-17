@@ -19,9 +19,7 @@ class TriggersMustDefineATargetTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new TriggersMustDefineATarget(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new TriggersMustDefineATarget;
     }
 
     #[Test]

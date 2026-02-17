@@ -10,7 +10,6 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use PHPStan\Type\ObjectType;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
@@ -23,15 +22,8 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Class_::class)]
 class TriggerTargetMustBeAModel extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
     /** @var Collection<int, Property> */
     private Collection $invalidTargets;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
 
     public function prepare(Node $node, Scope $scope): void
     {
@@ -47,7 +39,7 @@ class TriggerTargetMustBeAModel extends Rule
             return false;
         }
 
-        return $this->inherits($node, Trigger::class, $this->reflectionProvider)
+        return $this->inherits($node, Trigger::class)
             && $this->invalidTargets->isNotEmpty();
     }
 

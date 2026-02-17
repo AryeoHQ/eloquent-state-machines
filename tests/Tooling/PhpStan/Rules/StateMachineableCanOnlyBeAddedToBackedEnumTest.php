@@ -19,9 +19,7 @@ class StateMachineableCanOnlyBeAddedToBackedEnumTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new StateMachineableCanOnlyBeAddedToBackedEnum(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new StateMachineableCanOnlyBeAddedToBackedEnum;
     }
 
     #[Test]

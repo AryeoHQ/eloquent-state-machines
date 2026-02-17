@@ -8,7 +8,6 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Tooling\PhpStan\Rules\Rule;
@@ -20,20 +19,13 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Class_::class)]
 class TriggersMustDefineATarget extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
-
     public function shouldHandle(Node $node, Scope $scope): bool
     {
         if ($node->isAbstract()) {
             return false;
         }
 
-        return $this->inherits($node, Trigger::class, $this->reflectionProvider)
+        return $this->inherits($node, Trigger::class)
             && ! $this->hasTargetAttribute($node);
     }
 

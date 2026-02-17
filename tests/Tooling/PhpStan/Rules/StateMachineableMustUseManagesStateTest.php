@@ -19,9 +19,7 @@ class StateMachineableMustUseManagesStateTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new StateMachineableMustUseManagesState(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new StateMachineableMustUseManagesState;
     }
 
     #[Test]

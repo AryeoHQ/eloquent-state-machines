@@ -13,7 +13,6 @@ use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\Node\Stmt\EnumCase;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Tooling\EloquentStateMachines\PhpStan\Support\CaseTriggers;
@@ -26,15 +25,8 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Enum_::class)]
 class StateMachineableCannotDuplicateTransitionTriggerPerCase extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
     /** @var Collection<(int|string), object{case: EnumCase, triggers: CaseTriggers}&\stdClass> */
     private Collection $duplicates;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
 
     public function prepare(Node $node, Scope $scope): void
     {
@@ -46,7 +38,7 @@ class StateMachineableCannotDuplicateTransitionTriggerPerCase extends Rule
 
     public function shouldHandle(Node $node, Scope $scope): bool
     {
-        return $this->inherits($node, StateMachineable::class, $this->reflectionProvider)
+        return $this->inherits($node, StateMachineable::class)
             && $this->duplicates->isNotEmpty();
     }
 

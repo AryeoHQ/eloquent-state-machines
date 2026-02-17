@@ -48,7 +48,7 @@ class TransitionUsingMustBeATrigger extends Rule
 
     public function shouldHandle(Node $node, Scope $scope): bool
     {
-        return $this->inherits($node, StateMachineable::class, $this->reflectionProvider)
+        return $this->inherits($node, StateMachineable::class)
             && $this->invalidUsings->isNotEmpty();
     }
 
@@ -87,6 +87,6 @@ class TransitionUsingMustBeATrigger extends Rule
 
         $reflection = $this->reflectionProvider->getClass($class);
 
-        return $this->inherits($reflection, Trigger::class, $this->reflectionProvider);
+        return $this->inherits($reflection, Trigger::class);
     }
 }

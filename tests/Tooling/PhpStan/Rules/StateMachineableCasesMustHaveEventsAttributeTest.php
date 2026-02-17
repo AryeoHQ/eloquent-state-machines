@@ -19,9 +19,7 @@ class StateMachineableCasesMustHaveEventsAttributeTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new StateMachineableCasesMustHaveEventsAttribute(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new StateMachineableCasesMustHaveEventsAttribute;
     }
 
     #[Test]

@@ -10,16 +10,14 @@ use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 use Tests\TestCase;
 use Tests\Tooling\Concerns\GetsFixtures;
 use Tooling\EloquentStateMachines\Rector\Rules\AddTriggerMethodsToStateMachineableDocBlocks;
-use Tooling\Rector\Rules\Provides\ValidatesInheritance;
-use Tooling\Rector\Testing\ParsesNodes;
+use Tooling\Rector\Testing\ParsesNodesWithScope;
 use Tooling\Rector\Testing\ResolvesRectorRules;
 
 class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
 {
     use GetsFixtures;
-    use ParsesNodes;
+    use ParsesNodesWithScope;
     use ResolvesRectorRules;
-    use ValidatesInheritance;
 
     #[Test]
     public function it_has_rule_definition(): void
@@ -35,7 +33,7 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
     #[Test]
     public function it_does_not_refactor_plain_enums(): void
     {
-        $enumNode = $this->getEnumNode($this->getFixturePath('Rector/PlainEnum.php'));
+        $enumNode = $this->getEnumNodeWithScope($this->getFixturePath('Rector/PlainEnum.php'));
 
         $rule = $this->resolveRule(AddTriggerMethodsToStateMachineableDocBlocks::class);
         $result = $rule->refactor($enumNode);
@@ -46,7 +44,7 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
     #[Test]
     public function it_refactors_state_machineable_enum(): void
     {
-        $enumNode = $this->getEnumNode(
+        $enumNode = $this->getEnumNodeWithScope(
             $this->getFixturePath('../Support/Users/Status/Status.php')
         );
 
@@ -65,7 +63,7 @@ class AddTriggerMethodsToStateMachineableDocBlocksTest extends TestCase
     #[Test]
     public function it_is_idempotent(): void
     {
-        $enumNode = $this->getEnumNode(
+        $enumNode = $this->getEnumNodeWithScope(
             $this->getFixturePath('../Support/Users/Status/Status.php')
         );
 

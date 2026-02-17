@@ -8,7 +8,6 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Property;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Tooling\PhpStan\Rules\Rule;
@@ -20,15 +19,8 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Class_::class)]
 class TriggerCannotHaveMultipleTargets extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
     /** @var \Illuminate\Support\Collection<int, Property> */
     private \Illuminate\Support\Collection $targetProperties;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
 
     public function prepare(Node $node, Scope $scope): void
     {
@@ -43,7 +35,7 @@ class TriggerCannotHaveMultipleTargets extends Rule
             return false;
         }
 
-        return $this->inherits($node, Trigger::class, $this->reflectionProvider)
+        return $this->inherits($node, Trigger::class)
             && $this->targetProperties->count() > 1;
     }
 

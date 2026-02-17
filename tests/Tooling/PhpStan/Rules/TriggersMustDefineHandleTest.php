@@ -19,9 +19,7 @@ class TriggersMustDefineHandleTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new TriggersMustDefineHandle(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new TriggersMustDefineHandle;
     }
 
     #[Test]

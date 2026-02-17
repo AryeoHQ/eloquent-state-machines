@@ -19,9 +19,7 @@ class StateMachineableCannotDuplicateTransitionTriggerPerCaseTest extends RuleTe
 
     protected function getRule(): Rule
     {
-        return new StateMachineableCannotDuplicateTransitionTriggerPerCase(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new StateMachineableCannotDuplicateTransitionTriggerPerCase;
     }
 
     #[Test]
