@@ -62,8 +62,10 @@ final class AddTriggerMethodsToStateMachineableDocBlocks extends Rule
                 'name' => str(class_basename($method->of))->camel()->toString(),
                 'type' => $method->of,
             ])
-        )->map->toDocBlockTag()->each(
-            fn ($method): null => $docBlock->addTagValueNode($method)
+        )->map(
+            fn (Method $method): MethodTagValueNode => $method->toDocBlockTag()
+        )->each(
+            fn (MethodTagValueNode $method): null => $docBlock->addTagValueNode($method)
         );
 
         $this->docBlockUpdater->updateRefactoredNodeWithPhpDocInfo($node);

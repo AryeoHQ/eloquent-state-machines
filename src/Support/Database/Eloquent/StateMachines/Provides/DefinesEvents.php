@@ -14,7 +14,9 @@ trait DefinesEvents
         $reflection = new \ReflectionEnumBackedCase($this, $this->name);
 
         return with(
-            collect($reflection->getAttributes(Events::class))->map->newInstance()->first(),
+            collect($reflection->getAttributes(Events::class))->map(
+                fn (\ReflectionAttribute $attribute): Events => $attribute->newInstance()
+            )->first(),
             fn (null|Events $events): Events => throw_unless($events, NotDefined::class, $this)
         );
     }

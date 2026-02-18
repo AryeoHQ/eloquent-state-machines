@@ -16,6 +16,8 @@ trait DefinesTransitions
     {
         $reflection = new \ReflectionEnumBackedCase($this, $this->name);
 
-        return collect($reflection->getAttributes(Transition::class))->map->newInstance();
+        return collect($reflection->getAttributes(Transition::class))->map(
+            fn (\ReflectionAttribute $attribute): Transition => $attribute->newInstance()
+        );
     }
 }

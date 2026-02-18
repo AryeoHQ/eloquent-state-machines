@@ -38,7 +38,6 @@ class TriggerTest extends TestCase
         $trigger = MissingTarget::make();
 
         $reflection = new \ReflectionMethod($trigger, 'target');
-        $reflection->setAccessible(true);
         $reflection->invoke($trigger);
     }
 
@@ -50,7 +49,6 @@ class TriggerTest extends TestCase
         $trigger = MultipleTargets::make();
 
         $reflection = new \ReflectionMethod($trigger, 'target');
-        $reflection->setAccessible(true);
         $reflection->invoke($trigger);
     }
 
@@ -62,7 +60,6 @@ class TriggerTest extends TestCase
         $trigger = TargetNotModel::make();
 
         $reflection = new \ReflectionMethod($trigger, 'target');
-        $reflection->setAccessible(true);
         $reflection->invoke($trigger);
     }
 

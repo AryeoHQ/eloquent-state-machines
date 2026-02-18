@@ -37,7 +37,10 @@ class ManagesStateTest extends TestCase
         $this->assertNull(Status::tryFrom('__missing'));
 
         tap(new ReflectionEnum(Status::class), function (ReflectionEnum $enum): void {
-            $actual = collect($enum->getCases())->map->getValue();
+            $actual = collect($enum->getCases())->map(
+                fn (\ReflectionEnumUnitCase $case): \UnitEnum => $case->getValue()
+            );
+
             $this->assertSame($actual->toArray(), Status::cases());
         });
     }

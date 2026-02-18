@@ -30,7 +30,9 @@ abstract class Trigger implements Contracts\Trigger
     {
         if (method_exists(static::class, '__construct')) {
             $reflection = new \ReflectionMethod(static::class, '__construct');
-            $arguments = collect($reflection->getParameters())->map->name->combine($arguments)->all();
+            $arguments = collect($reflection->getParameters())->map(
+                fn (\ReflectionParameter $parameter): string => $parameter->name
+            )->combine($arguments)->all();
         }
 
         return resolve(static::class, (array) $arguments);
@@ -100,7 +102,9 @@ abstract class Trigger implements Contracts\Trigger
 
     private function target(): string
     {
-        $properties = collect(new ReflectionClass($this)->getProperties())->filter->getAttributes(Target\Target::class);
+        $properties = collect((new ReflectionClass($this))->getProperties())->filter(
+            fn (ReflectionProperty $property): bool => (bool) $property->getAttributes(Target\Target::class)
+        );
 
         throw_unless($properties->isNotEmpty(), Target\Exceptions\NotDefined::class, $this);
         throw_unless($properties->count() === 1, Target\Exceptions\MultipleDefined::class, $this);
