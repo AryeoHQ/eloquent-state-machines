@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
-use BackedEnum;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Event;
-use ReflectionClass;
-use ReflectionNamedType;
-use ReflectionProperty;
-use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
-use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Throwable;
+use BackedEnum;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionProperty;
+use ReflectionNamedType;
+use ReflectionParameter;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Database\Eloquent\Model;
+use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 
 abstract class Trigger implements Contracts\Trigger
 {
@@ -29,9 +31,9 @@ abstract class Trigger implements Contracts\Trigger
     final public static function make(mixed ...$arguments): static
     {
         if (method_exists(static::class, '__construct')) {
-            $reflection = new \ReflectionMethod(static::class, '__construct');
+            $reflection = new ReflectionMethod(static::class, '__construct');
             $arguments = collect($reflection->getParameters())->map(
-                fn (\ReflectionParameter $parameter): string => $parameter->name
+                fn (ReflectionParameter $parameter): string => $parameter->name
             )->combine($arguments)->all();
         }
 

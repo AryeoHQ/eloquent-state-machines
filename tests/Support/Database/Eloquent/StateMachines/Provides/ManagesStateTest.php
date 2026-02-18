@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Support\Database\Eloquent\StateMachines\Provides;
 
-use PHPUnit\Framework\Attributes\Test;
-use ReflectionEnum;
-use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotAccessible;
-use Tests\Fixtures\Support\Users\Status\Status;
-use Tests\TestCase;
+use UnitEnum;
 use ValueError;
+use ReflectionEnum;
+use Tests\TestCase;
+use ReflectionEnumUnitCase;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotAccessible;
 
 class ManagesStateTest extends TestCase
 {
@@ -38,7 +40,7 @@ class ManagesStateTest extends TestCase
 
         tap(new ReflectionEnum(Status::class), function (ReflectionEnum $enum): void {
             $actual = collect($enum->getCases())->map(
-                fn (\ReflectionEnumUnitCase $case): \UnitEnum => $case->getValue()
+                fn (ReflectionEnumUnitCase $case): UnitEnum => $case->getValue()
             );
 
             $this->assertSame($actual->toArray(), Status::cases());
