@@ -1,33 +1,41 @@
 services:
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCanOnlyBeAddedToBackedEnum
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCanOnlyBeAddedToBackedEnum
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCasesMustHaveEventsAttribute
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCasesMustHaveEventsAttribute
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableMustUseManagesState
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableMustUseManagesState
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\ManagesStateCanOnlyBeAddedToStateMachineable
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\ManagesStateCanOnlyBeAddedToStateMachineable
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\StateMachineableCannotDuplicateTransitionTriggerPerCase
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCannotDuplicateTransitionTriggerPerCase
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggersMustDefineATarget
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggersMustDefineATarget
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggerTargetMustBeAModel
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerTargetMustBeAModel
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PHPStan\Rules\TriggerCannotHaveMultipleTargets
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerCannotHaveMultipleTargets
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggersMustDefineHandle
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TransitionUsingMustBeATrigger
         tags:
             - phpstan.rules.rule

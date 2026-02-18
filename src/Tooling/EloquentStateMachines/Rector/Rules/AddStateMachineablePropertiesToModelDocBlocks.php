@@ -15,29 +15,38 @@ use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
 use Rector\BetterPhpDocParser\PhpDocManipulator\PhpDocTagRemover;
 use Rector\Comments\NodeDocBlock\DocBlockUpdater;
-use Rector\Rector\AbstractRector;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Tooling\Rector\Rules\Definitions\Attributes\Definition;
+use Tooling\Rector\Rules\Rule;
+use Tooling\Rector\Rules\Samples\Attributes\Sample;
+use Tooling\Rules\Attributes\NodeType;
 
-final class AddStateMachineablePropertiesToModelDocBlocks extends AbstractRector
+/**
+ * @extends Rule<Class_>
+ */
+#[Definition('Add StateMachineable property doc blocks to Model classes')]
+#[NodeType(Class_::class)]
+#[Sample('state-machines.rector.rules.samples')]
+final class AddStateMachineablePropertiesToModelDocBlocks extends Rule
 {
-    public function getNodeTypes(): array
-    {
-        return [Class_::class];
-    }
+    public PhpDocInfoFactory $phpDocInfoFactory;
 
-    public function __construct(public PhpDocInfoFactory $phpDocInfoFactory, public DocBlockUpdater $docBlockUpdater)
+    public DocBlockUpdater $docBlockUpdater;
+
+    public function __construct(PhpDocInfoFactory $phpDocInfoFactory, DocBlockUpdater $docBlockUpdater)
     {
         $this->phpDocInfoFactory = $phpDocInfoFactory;
         $this->docBlockUpdater = $docBlockUpdater;
     }
 
-    public function refactor(Node $node): null|Node
+    public function shouldHandle(Node $node): bool
+    {
+        return $this->inherits($node, Model::class);
+    }
+
+    public function handle(Node $node): Node
     {
         $class = $this->getName($node);
-
-        if ($this->shouldNotRun($class)) {
-            return null;
-        }
 
         $docBlock = $this->prepareDocBlock($node);
 
@@ -54,16 +63,6 @@ final class AddStateMachineablePropertiesToModelDocBlocks extends AbstractRector
         $this->docBlockUpdater->updateRefactoredNodeWithPhpDocInfo($node);
 
         return $node;
-    }
-
-    private function shouldRun(string $class): bool
-    {
-        return is_subclass_of($class, Model::class, true);
-    }
-
-    private function shouldNotRun(string $class): bool
-    {
-        return ! $this->shouldRun($class);
     }
 
     private function prepareDocBlock(Node $node): PhpDocInfo

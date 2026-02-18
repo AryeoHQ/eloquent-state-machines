@@ -6,9 +6,11 @@ namespace Tests\Support\Database\Eloquent\StateMachines\Provides;
 
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionEnum;
+use ReflectionEnumUnitCase;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotAccessible;
-use Tests\Fixtures\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\TestCase;
+use UnitEnum;
 use ValueError;
 
 class ManagesStateTest extends TestCase
@@ -37,7 +39,10 @@ class ManagesStateTest extends TestCase
         $this->assertNull(Status::tryFrom('__missing'));
 
         tap(new ReflectionEnum(Status::class), function (ReflectionEnum $enum): void {
-            $actual = collect($enum->getCases())->map->getValue();
+            $actual = collect($enum->getCases())->map(
+                fn (ReflectionEnumUnitCase $case): UnitEnum => $case->getValue()
+            );
+
             $this->assertSame($actual->toArray(), Status::cases());
         });
     }

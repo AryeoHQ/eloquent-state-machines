@@ -42,7 +42,8 @@ final class Diagram
         $blockPattern = '/(diagram:([^:\s]+):start[\s\S]*?diagram:\2:end)/m';  // group1 = whole block, group2 = id
         $directionPattern = '/^\s*direction\s+([A-Za-z-]+)\b/im';
 
-        return $content->matchAll($blockPattern)->map(function (string $block) use ($directionPattern) {
+        /** @var Collection<array-key, Diagram> $diagrams */
+        $diagrams = $content->matchAll($blockPattern)->map(function (string $block) use ($directionPattern): self {
             $class = Str::of($block)->match('/^diagram:([^:\s]+):start/m')->toString();
             $direction = Str::of($block)->match($directionPattern)->toString();
 
@@ -50,7 +51,9 @@ final class Diagram
                 class: $class,
                 direction: Direction::tryFrom($direction) ?? Direction::LeftToRight,
             );
-        })->unique->current;
+        });
+
+        return $diagrams->unique('current');
     }
 
     /**

@@ -18,6 +18,7 @@ class Provider extends ServiceProvider
     private function bootViews(): void
     {
         $this->loadViewsFrom(__DIR__.'/../../../../../resources/views', 'state-machine');
+        $this->loadViewsFrom(__DIR__.'/../../../../../resources/views/rector/rules', 'state-machines.rector.rules.samples');
     }
 
     private function bootCommands(): void

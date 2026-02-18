@@ -7,8 +7,8 @@ namespace Tests\Support\Database\Eloquent\StateMachines\Transitions;
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotFound;
-use Tests\Fixtures\Users\Status\Status;
-use Tests\Fixtures\Users\Status\Triggers\NotATrigger;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\NotATrigger;
 use Tests\TestCase;
 
 class TransitionTest extends TestCase
