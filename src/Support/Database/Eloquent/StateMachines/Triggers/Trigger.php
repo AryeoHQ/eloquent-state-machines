@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
-use Throwable;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Event;
 use ReflectionClass;
 use ReflectionMethod;
-use ReflectionProperty;
 use ReflectionNamedType;
 use ReflectionParameter;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Database\Eloquent\Model;
-use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use ReflectionProperty;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
+use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Throwable;
 
 abstract class Trigger implements Contracts\Trigger
 {

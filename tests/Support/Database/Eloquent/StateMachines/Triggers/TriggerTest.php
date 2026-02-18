@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace Tests\Support\Database\Eloquent\StateMachines\Triggers;
 
-use Tests\TestCase;
-use ReflectionMethod;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
-use Tests\Fixtures\Support\Users\User;
-use Tests\Fixtures\Support\Users\Status\Status;
-use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
-use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
-use Tests\Fixtures\Tooling\PhpStan\Triggers\MissingTarget;
-use Tests\Fixtures\Tooling\PhpStan\Triggers\TargetNotModel;
-use Support\Database\Eloquent\StateMachines\Triggers\Target;
-use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
-use Tests\Fixtures\Tooling\PhpStan\Triggers\MultipleTargets;
-use Tests\Fixtures\Tooling\PhpStan\Triggers\HandleNotDefined;
-use Support\Database\Eloquent\StateMachines\Triggers\Exceptions;
-use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
+use ReflectionMethod;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
+use Support\Database\Eloquent\StateMachines\Triggers\Exceptions;
+use Support\Database\Eloquent\StateMachines\Triggers\Target;
+use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
+use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
+use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
+use Tests\Fixtures\Support\Users\User;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\HandleNotDefined;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\MissingTarget;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\MultipleTargets;
+use Tests\Fixtures\Tooling\PhpStan\Triggers\TargetNotModel;
+use Tests\TestCase;
 
 class TriggerTest extends TestCase
 {

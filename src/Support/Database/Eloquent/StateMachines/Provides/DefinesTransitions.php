@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Provides;
 
+use Illuminate\Support\Collection;
 use ReflectionAttribute;
 use ReflectionEnumBackedCase;
-use Illuminate\Support\Collection;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 
 trait DefinesTransitions
