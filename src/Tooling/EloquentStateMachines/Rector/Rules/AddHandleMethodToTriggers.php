@@ -36,6 +36,6 @@ final class AddHandleMethodToTriggers extends Rule
 
     public function handle(Node $node): Node
     {
-        return $this->ensureMethodIsDefined($node, 'handle', 'void');
+        return $this->addMethod($node, 'handle', 'void');
     }
 }
