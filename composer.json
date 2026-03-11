@@ -7,10 +7,16 @@
         "psr-4": {
             "Support\\": "src/Support/",
             "Tooling\\": "src/Tooling/"
-        }
+        },
+        "exclude-from-classmap": [
+            "*Test.php",
+            "*TestCases.php",
+            "/tests/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
+            "App\\": "vendor/orchestra/testbench-core/laravel/app/",
             "Tests\\": "tests/"
         }
     },
@@ -42,7 +48,7 @@
         "orchestra/testbench": "^10.6",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "0.0.17",
+        "aryeo/tooling-laravel": "0.0.28",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7",
         "symplify/rule-doc-generator-contracts": "^11.2"
