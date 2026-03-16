@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\Provides\ManagesState;
+
+enum {{ class }}: string implements StateMachineable
+{
+    use ManagesState;
+
+    // case Example = 'example';
+}
