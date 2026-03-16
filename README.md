@@ -232,6 +232,15 @@ class User
 ## Tooling
 This package provides configuration for tooling that assist with development efforts and enforce the expectations / requirements when using this package.
 
+## Generator
+Scaffold a new state machine enum with:
+
+```bash
+php artisan make:state-machine Status --model=App\\Models\\User
+```
+
+This creates a backed enum implementing `StateMachineable` with the `ManagesState` trait, along with a co-located test file. If `--model` is omitted, you will be prompted to select one.
+
 ## Diagramming
 To keep your documentation updated a command is included to create Markdown Diagrams of the available State Machines:
 

@@ -6,6 +6,7 @@ namespace Support\Database\Eloquent\StateMachines;
 
 use Illuminate\Support\ServiceProvider;
 use Support\Database\Eloquent\StateMachines\Console\Commands\Diagram;
+use Support\Database\Eloquent\StateMachines\Console\Commands\MakeStateMachine;
 
 class Provider extends ServiceProvider
 {
@@ -29,6 +30,7 @@ class Provider extends ServiceProvider
 
         $this->commands([
             Diagram::class,
+            MakeStateMachine::class,
         ]);
     }
 }
