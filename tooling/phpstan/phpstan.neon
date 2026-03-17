@@ -1,5 +1,9 @@
 services:
     -
+        class: Tooling\EloquentStateMachines\PhpStan\Extensions\StateMachineablePropertiesExtension
+        tags:
+            - phpstan.broker.propertiesClassReflectionExtension
+    -
         class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCanOnlyBeAddedToBackedEnum
         tags:
             - phpstan.rules.rule
