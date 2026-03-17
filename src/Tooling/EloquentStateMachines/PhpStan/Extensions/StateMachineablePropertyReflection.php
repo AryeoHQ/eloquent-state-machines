@@ -36,7 +36,7 @@ final class StateMachineablePropertyReflection implements PropertyReflection
         return true;
     }
 
-    public function getDocComment(): ?string
+    public function getDocComment(): null|string
     {
         return null;
     }
@@ -71,7 +71,7 @@ final class StateMachineablePropertyReflection implements PropertyReflection
         return TrinaryLogic::createNo();
     }
 
-    public function getDeprecatedDescription(): ?string
+    public function getDeprecatedDescription(): null|string
     {
         return null;
     }

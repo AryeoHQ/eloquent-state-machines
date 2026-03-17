@@ -6,15 +6,20 @@ namespace Tooling\EloquentStateMachines\PhpStan\Extensions;
 
 use Illuminate\Database\Eloquent\Model;
 use PHPStan\Reflection\ClassReflection;
-use PHPStan\Testing\PHPStanTestCase;
+use PHPStan\Rules\Rule;
+use PHPStan\Testing\RuleTestCase;
 use PHPStan\Type\ObjectType;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Tooling\EloquentStateMachines\PlainEnum;
+use Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableMustUseManagesState;
 
+/**
+ * @extends RuleTestCase<StateMachineableMustUseManagesState>
+ */
 #[CoversClass(StateMachineablePropertiesExtension::class)]
-class StateMachineablePropertiesExtensionTest extends PHPStanTestCase
+class StateMachineablePropertiesExtensionTest extends RuleTestCase
 {
     private StateMachineablePropertiesExtension $extension;
 
@@ -23,6 +28,11 @@ class StateMachineablePropertiesExtensionTest extends PHPStanTestCase
         parent::setUp();
 
         $this->extension = new StateMachineablePropertiesExtension;
+    }
+
+    protected function getRule(): Rule
+    {
+        return new StateMachineableMustUseManagesState;
     }
 
     private function getClassReflection(string $class): ClassReflection
@@ -107,6 +117,6 @@ class StateMachineablePropertiesExtensionTest extends PHPStanTestCase
 
     public static function getAdditionalConfigFiles(): array
     {
-        return [dirname(__DIR__, 5) . '/tooling/phpstan/phpstan.neon'];
+        return [dirname(__DIR__, 5).'/tooling/phpstan/phpstan.neon'];
     }
 }

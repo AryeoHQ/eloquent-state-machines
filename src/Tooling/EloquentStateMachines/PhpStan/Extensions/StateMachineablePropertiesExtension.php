@@ -38,6 +38,7 @@ final class StateMachineablePropertiesExtension implements PropertiesClassReflec
         $type = match ($propertyName) {
             'enum' => new ObjectType($classReflection->getName()),
             'model' => new ObjectType(Model::class),
+            default => new ObjectType($classReflection->getName()),
         };
 
         return new StateMachineablePropertyReflection($classReflection, $type);
