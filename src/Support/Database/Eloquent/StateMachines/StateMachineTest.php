@@ -77,4 +77,13 @@ class StateMachineTest extends TestCase
 
         $this->assertSame(Status::Registered->value, (string) $stateMachine);
     }
+
+    #[Test]
+    public function it_can_compare_to_an_enum_case(): void
+    {
+        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+
+        $this->assertTrue($stateMachine->is(Status::Registered));
+        $this->assertFalse($stateMachine->is(Status::Activated));
+    }
 }
