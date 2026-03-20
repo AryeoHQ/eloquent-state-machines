@@ -39,6 +39,11 @@ class StateMachine implements Contracts\Proxy, Stringable
         return resolve(static::class, ['model' => $model, 'enum' => $enum]);
     }
 
+    final public function is(StateMachineable&BackedEnum $enum): bool
+    {
+        return $this->enum === $enum;
+    }
+
     final public function __call(string $name, array $arguments): mixed
     {
         return $this->enum->$name(...$arguments);
