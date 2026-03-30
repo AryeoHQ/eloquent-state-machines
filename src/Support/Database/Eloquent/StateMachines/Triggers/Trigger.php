@@ -36,7 +36,7 @@ abstract class Trigger implements Contracts\Trigger
             $arguments = static::normalizeArguments($arguments, $reflection->getParameters());
         }
 
-        return resolve(static::class, (array) $arguments);
+        return resolve(static::class, $arguments);
     }
 
     final public function to(StateMachineable&BackedEnum $to): self
@@ -133,9 +133,11 @@ abstract class Trigger implements Contracts\Trigger
     /**
      * Normalize constructor arguments to support positional, named, and default parameters.
      *
+     * @param  array<int|string, mixed>  $arguments
      * @param  array<ReflectionParameter>  $parameters
+     * @return array<int|string, mixed>
      */
-    private static function normalizeArguments(array $arguments, array $parameters): array
+    protected static function normalizeArguments(array $arguments, array $parameters): array
     {
         $parameterCount = count($parameters);
         $lastParameter = $parameterCount > 0 ? $parameters[$parameterCount - 1] : null;
