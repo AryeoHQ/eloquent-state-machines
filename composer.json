@@ -48,7 +48,7 @@
         "orchestra/testbench": "^10.6",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "0.0.31",
+        "aryeo/tooling-laravel": "0.0.33",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7",
         "symplify/rule-doc-generator-contracts": "^11.2"

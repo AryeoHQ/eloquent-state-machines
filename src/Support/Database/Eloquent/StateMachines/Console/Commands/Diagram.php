@@ -10,12 +10,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Stringable;
-use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Diagrams;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
+use Tooling\Composer\ClassMap\Cache;
 use Tooling\Composer\Composer;
+use Tooling\EloquentStateMachines\Composer\ClassMap\Collectors\StateMachines;
 
 use function Laravel\Prompts\progress;
 use function Laravel\Prompts\select;
@@ -25,20 +26,19 @@ use function Laravel\Prompts\suggest;
 class Diagram extends Command implements PromptsForMissingInput
 {
     private Composer $composer {
-        get => $this->composer ??= new Composer;
+        get => $this->composer ??= resolve(Composer::class);
     }
 
     /** @var Collection<array-key, Stringable> */
     private Collection $stateMachineables {
-        get => $this->stateMachineables ??= $this->composer->classMap
-            ->reject(fn (string $path): bool => str_contains($path, '/vendor/'))
-            ->reject(fn (string $path, string $class): bool => str($class)->is('Tests\\*'))
-            ->filter(fn (string $path, string $class): bool => rescue(fn () => is_subclass_of($class, StateMachineable::class), false, false))
-            ->map(
-                fn (string $path, string $class): Stringable => str(View::make('state-machine::diagram', [
-                    'direction' => $this->option('direction'),
-                    'stateMachineable' => $class,
-                ])->render())->rtrim(PHP_EOL)
+        get => $this->stateMachineables ??= collect(resolve(Cache::class)->get(StateMachines::class) ?? [])
+            ->mapWithKeys(
+                fn (string $class): array => [
+                    $class => str(View::make('state-machine::diagram', [
+                        'direction' => $this->option('direction'),
+                        'stateMachineable' => $class,
+                    ])->render())->rtrim(PHP_EOL),
+                ]
             );
     }
 

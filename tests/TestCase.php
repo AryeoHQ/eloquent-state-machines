@@ -7,13 +7,16 @@ namespace Tests;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench;
+use Support\Database\Eloquent\StateMachines\Provider;
 
 abstract class TestCase extends Testbench\TestCase
 {
+    protected $enablesPackageDiscoveries = true;
+
     protected function getPackageProviders($app): array
     {
         return [
-            \Support\Database\Eloquent\StateMachines\Provider::class,
+            Provider::class,
         ];
     }
 

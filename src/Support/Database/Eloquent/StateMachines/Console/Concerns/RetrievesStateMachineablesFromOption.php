@@ -10,7 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 /**
  * @mixin \Illuminate\Console\GeneratorCommand
  */
-trait RetrievesModelFromOption
+trait RetrievesStateMachineablesFromOption
 {
     protected function modelFromOption(): null|Stringable
     {

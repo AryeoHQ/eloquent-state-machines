@@ -4,30 +4,28 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Console\Concerns;
 
-use Illuminate\Database\Eloquent\Model as EloquentModel;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Stringable;
+use Tooling\Composer\ClassMap\Collectors\Contracts\Collector;
+use Tooling\EloquentStateMachines\Composer\ClassMap\Collectors\StateMachineables;
+use Tooling\GeneratorCommands\Concerns\SearchesAutoloadCaches;
 use Tooling\GeneratorCommands\References\GenericClass;
 
 use function Laravel\Prompts\search;
 
 /**
  * @mixin \Illuminate\Console\GeneratorCommand
- * @mixin \Tooling\GeneratorCommands\Concerns\SearchesClasses
  */
-trait RetrievesModel
+trait RetrievesStateMachineables
 {
-    use RetrievesModelFromOption;
+    use RetrievesStateMachineablesFromOption;
+    use SearchesAutoloadCaches;
 
     public protected(set) GenericClass $model;
 
-    /**
-     * @param  Collection<int, string>  $classes
-     * @return Collection<int, string>
-     */
-    protected function filterSearchableClasses(Collection $classes): Collection
+    /** @return class-string<Collector> */
+    protected function collector(): string
     {
-        return $classes->filter(fn (string $class) => $this->isSearchableModel($class));
+        return StateMachineables::class;
     }
 
     public function resolveModel(): void
@@ -61,10 +59,5 @@ trait RetrievesModel
             required: true,
             scroll: 5,
         ));
-    }
-
-    protected function isSearchableModel(string $class): bool
-    {
-        return rescue(fn () => is_a($class, EloquentModel::class, true) && ! (new \ReflectionClass($class))->isAbstract(), false, false);
     }
 }
