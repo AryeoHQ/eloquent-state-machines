@@ -6,14 +6,13 @@ namespace Support\Database\Eloquent\StateMachines\Console\Commands;
 
 use Illuminate\Console\GeneratorCommand;
 use Illuminate\Support\Stringable;
-use Support\Database\Eloquent\StateMachines\Console\Concerns\RetrievesModel;
+use Support\Database\Eloquent\StateMachines\Console\Concerns\RetrievesStateMachineables;
 use Support\Database\Eloquent\StateMachines\Console\References\StateMachine;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Tooling\GeneratorCommands\Concerns\CreatesColocatedTests;
 use Tooling\GeneratorCommands\Concerns\GeneratorCommandCompatibility;
-use Tooling\GeneratorCommands\Concerns\SearchesClasses;
 use Tooling\GeneratorCommands\Contracts\GeneratesFile;
 
 #[AsCommand(name: 'make:state-machine', description: 'Create a new state machine.')]
@@ -21,8 +20,7 @@ class MakeStateMachine extends GeneratorCommand implements GeneratesFile
 {
     use CreatesColocatedTests;
     use GeneratorCommandCompatibility;
-    use RetrievesModel;
-    use SearchesClasses;
+    use RetrievesStateMachineables;
 
     protected $type = 'State Machine';
 

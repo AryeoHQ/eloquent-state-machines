@@ -4,46 +4,40 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Console\Commands;
 
+use Illuminate\Support\Facades\File;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Console\References\StateMachine;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Provides\ManagesState;
 use Tests\TestCase;
+use Tooling\Composer\Composer;
+use Tooling\EloquentStateMachines\Composer\ClassMap\Collectors\StateMachineables;
 use Tooling\GeneratorCommands\References\GenericClass;
-use Tooling\GeneratorCommands\Testing\Concerns\CleansUpGeneratorCommands;
 use Tooling\GeneratorCommands\Testing\Concerns\GeneratesFileTestCases;
 
 #[CoversClass(MakeStateMachine::class)]
 class MakeStateMachineTest extends TestCase
 {
-    use CleansUpGeneratorCommands;
     use GeneratesFileTestCases;
 
-    /** @var array<array-key, string> */
-    protected array $files {
-        get => [
-            $this->reference->directory->append('/*')->toString(),
-            $this->reference->model->filePath->toString(),
-        ];
-    }
-
     public StateMachine $reference {
-        get => new StateMachine(GenericClass::fromFqcn('Workbench\\App\\Models\\TestModel'), 'Workflow');
+        get => new StateMachine(GenericClass::fromFqcn('App\\Models\\TestModel'), 'Workflow');
     }
 
     /** @var array<string, mixed> */
     public array $baselineInput {
-        get => ['name' => 'Workflow', '--model' => 'Workbench\\App\\Models\\TestModel', '--no-test' => true];
+        get => ['name' => 'Workflow', '--model' => 'App\\Models\\TestModel', '--no-test' => true];
     }
 
     #[Test]
     public function it_generates_a_state_machine_that_implements_state_machineable(): void
     {
-        $this->artisan('make:model', ['name' => 'TestModel', '--force' => true]);
+        Composer::fake();
+
         $this->artisan($this->command, $this->baselineInput)->assertSuccessful();
 
-        $contents = file_get_contents($this->expectedFilePath);
+        $contents = File::get($this->expectedFilePath);
 
         $this->assertStringContainsString('implements '.class_basename(StateMachineable::class), $contents);
     }
@@ -51,10 +45,11 @@ class MakeStateMachineTest extends TestCase
     #[Test]
     public function it_generates_a_state_machine_that_uses_manages_state(): void
     {
-        $this->artisan('make:model', ['name' => 'TestModel', '--force' => true]);
+        Composer::fake();
+
         $this->artisan($this->command, $this->baselineInput)->assertSuccessful();
 
-        $contents = file_get_contents($this->expectedFilePath);
+        $contents = File::get($this->expectedFilePath);
 
         $this->assertStringContainsString('use '.class_basename(ManagesState::class).';', $contents);
     }
@@ -62,10 +57,11 @@ class MakeStateMachineTest extends TestCase
     #[Test]
     public function it_generates_a_backed_enum(): void
     {
-        $this->artisan('make:model', ['name' => 'TestModel', '--force' => true]);
+        Composer::fake();
+
         $this->artisan($this->command, $this->baselineInput)->assertSuccessful();
 
-        $contents = file_get_contents($this->expectedFilePath);
+        $contents = File::get($this->expectedFilePath);
 
         $this->assertStringContainsString('enum Workflow: string', $contents);
     }
@@ -73,9 +69,41 @@ class MakeStateMachineTest extends TestCase
     #[Test]
     public function it_creates_a_colocated_test(): void
     {
-        $this->artisan('make:model', ['name' => 'TestModel', '--force' => true]);
-        $this->artisan($this->command, ['name' => 'Workflow', '--model' => 'Workbench\\App\\Models\\TestModel'])->assertSuccessful();
+        Composer::fake();
 
-        $this->assertFileExists($this->reference->test->filePath->toString());
+        $this->artisan($this->command, ['name' => 'Workflow', '--model' => 'App\\Models\\TestModel'])->assertSuccessful();
+
+        $this->assertTrue(File::exists($this->reference->test->filePath->toString()));
+    }
+
+    #[Test]
+    public function it_prompts_for_model_when_option_is_omitted(): void
+    {
+        Composer::fake();
+
+        $target = tap(
+            GenericClass::fromFqcn('App\\Models\\ModelPromptTarget'),
+            fn (GenericClass $entity) => StateMachineables::fake([$entity->fqcn->ltrim('\\')->toString()])
+        );
+
+        $this->artisan($this->command, ['name' => 'Workflow', '--no-test' => true])
+            ->expectsSearch('Which model?', $target->fqcn->ltrim('\\')->toString(), 'ModelPromptTarget', [$target->fqcn->ltrim('\\')->toString()])
+            ->assertSuccessful();
+    }
+
+    #[Test]
+    public function it_warns_and_prompts_when_model_is_not_fully_qualified(): void
+    {
+        Composer::fake();
+
+        $target = tap(
+            GenericClass::fromFqcn('App\\Models\\ModelPromptTarget'),
+            fn (GenericClass $entity) => StateMachineables::fake([$entity->fqcn->ltrim('\\')->toString()])
+        );
+
+        $this->artisan($this->command, ['name' => 'Workflow', '--model' => 'ModelPromptTarget', '--no-test' => true])
+            ->expectsOutputToContain('fully-qualified class name')
+            ->expectsSearch('Which model?', $target->fqcn->ltrim('\\')->toString(), 'ModelPromptTarget', [$target->fqcn->ltrim('\\')->toString()])
+            ->assertSuccessful();
     }
 }
