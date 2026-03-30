@@ -109,13 +109,35 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
-    public function it_accepts_inputs_through_constructor(): void
+    public function it_accepts_positional_inputs_through_constructor(): void
+    {
+        $trigger = Suspend::make($at = now()->addDays(100))->to(Status::Suspended)->on($user = User::factory()->registered()->make());
+
+        $trigger->run();
+
+        $this->assertEquals($at->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
+    public function it_accepts_named_inputs_through_constructor(): void
     {
         $trigger = Suspend::make(at: $at = now()->addDays(100))->to(Status::Suspended)->on($user = User::factory()->registered()->make());
 
         $trigger->run();
 
         $this->assertEquals($at->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
+    public function it_supports_default_values_for_inputs(): void
+    {
+        $this->freezeTime();
+
+        $trigger = Suspend::make()->to(Status::Suspended)->on($user = User::factory()->registered()->make());
+
+        $trigger->run();
+
+        $this->assertEquals(now()->toDateTimeString(), $user->suspended_at);
     }
 
     #[Test]

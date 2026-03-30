@@ -7,6 +7,7 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
+use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
@@ -32,12 +33,10 @@ abstract class Trigger implements Contracts\Trigger
     {
         if (method_exists(static::class, '__construct')) {
             $reflection = new ReflectionMethod(static::class, '__construct');
-            $arguments = collect($reflection->getParameters())->map(
-                fn (ReflectionParameter $parameter): string => $parameter->name
-            )->combine($arguments)->all();
+            $arguments = static::normalizeArguments($arguments, $reflection->getParameters());
         }
 
-        return resolve(static::class, (array) $arguments);
+        return resolve(static::class, $arguments);
     }
 
     final public function to(StateMachineable&BackedEnum $to): self
@@ -129,5 +128,51 @@ abstract class Trigger implements Contracts\Trigger
         )->keys()->first();
 
         $this->model->forceFill([(string) $name => $this->to])->save();
+    }
+
+    /**
+     * Normalize constructor arguments to support positional, named, and default parameters.
+     *
+     * @param  array<int|string, mixed>  $arguments
+     * @param  array<ReflectionParameter>  $parameters
+     * @return array<int|string, mixed>
+     */
+    protected static function normalizeArguments(array $arguments, array $parameters): array
+    {
+        $parameterCount = count($parameters);
+        $lastParameter = $parameterCount > 0 ? $parameters[$parameterCount - 1] : null;
+
+        // Build a case-insensitive map of parameter names for named argument lookup
+        $parameterMap = collect($parameters)->mapWithKeys(
+            fn ($param) => [strtolower($param->name) => $param->name]
+        );
+
+        return collect($arguments)->mapWithKeys(function ($value, $key) use ($parameters, $parameterCount, $lastParameter, $parameterMap) {
+            if (is_int($key)) {
+                // Positional argument - validate bounds
+                if ($key >= $parameterCount) {
+                    // Allow if last parameter is variadic
+                    if ($lastParameter?->isVariadic()) {
+                        return [$lastParameter->name => $value];
+                    }
+
+                    throw new InvalidArgumentException(
+                        sprintf(
+                            'Too many positional arguments for %s constructor. Expected at most %d, got at least %d.',
+                            static::class,
+                            $parameterCount,
+                            $key + 1
+                        )
+                    );
+                }
+
+                return [$parameters[$key]->name => $value];
+            }
+
+            // Named argument - normalize case to match parameter name
+            $normalizedKey = $parameterMap[strtolower($key)] ?? $key;
+
+            return [$normalizedKey => $value];
+        })->all();
     }
 }
