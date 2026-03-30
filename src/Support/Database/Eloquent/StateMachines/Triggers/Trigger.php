@@ -32,9 +32,12 @@ abstract class Trigger implements Contracts\Trigger
     {
         if (method_exists(static::class, '__construct')) {
             $reflection = new ReflectionMethod(static::class, '__construct');
-            $arguments = collect($reflection->getParameters())->map(
-                fn (ReflectionParameter $parameter): string => $parameter->name
-            )->combine($arguments)->all();
+            $parameters = $reflection->getParameters();
+
+            // Support a mix of positional and named parameters, and default values
+            $arguments = collect($arguments)->mapWithKeys(function ($value, $key) use ($parameters) {
+                return is_int($key) ? [$parameters[$key]->name => $value] : [$key => $value];
+            })->all();
         }
 
         return resolve(static::class, (array) $arguments);
