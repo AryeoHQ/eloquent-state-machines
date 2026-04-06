@@ -9,7 +9,7 @@ use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
 use Tests\Fixtures\Support\Users\User;
 
-class Suspend extends Trigger
+final class Suspend extends Trigger
 {
     #[Target]
     protected readonly User $user;

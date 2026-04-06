@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Triggers\Contracts;
 
-use Illuminate\Database\Eloquent\Model;
+use Support\Actions\Contracts\Action;
 
-interface Trigger
+interface Trigger extends Action
 {
-    public function run(): Model;
-
     public function allowed(): bool;
 
     public function blocked(): bool;

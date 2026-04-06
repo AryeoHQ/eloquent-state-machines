@@ -8,7 +8,7 @@ use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
 use Tests\Fixtures\Support\Users\User;
 
-class Activate extends Trigger
+final class Activate extends Trigger
 {
     #[Target]
     public readonly User $user;
