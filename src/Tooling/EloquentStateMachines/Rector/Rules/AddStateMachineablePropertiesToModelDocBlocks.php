@@ -10,12 +10,15 @@ use PhpParser\Node;
 use PhpParser\Node\Stmt\Class_;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocTagNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\PropertyTagValueNode;
+use PHPStan\PhpDocParser\Ast\Type\GenericTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\IntersectionTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfo;
 use Rector\BetterPhpDocParser\PhpDocInfo\PhpDocInfoFactory;
-use Rector\BetterPhpDocParser\PhpDocManipulator\PhpDocTagRemover;
 use Rector\Comments\NodeDocBlock\DocBlockUpdater;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\StateMachine;
 use Tooling\Rector\Rules\Definitions\Attributes\Definition;
 use Tooling\Rector\Rules\Rule;
 use Tooling\Rector\Rules\Samples\Attributes\Sample;
@@ -48,40 +51,85 @@ final class AddStateMachineablePropertiesToModelDocBlocks extends Rule
     {
         $class = $this->getName($node);
 
-        $docBlock = $this->prepareDocBlock($node);
+        $docBlock = $this->phpDocInfoFactory->createFromNodeOrEmpty($node);
 
-        $this->casts($class)->map(
-            fn ($caster, $key): PropertyTagValueNode => new PropertyTagValueNode(
-                new IdentifierTypeNode('\\'.$caster),
-                '$'.$key,
-                ''
-            )
-        )->each(
-            fn (PropertyTagValueNode $property) => $docBlock->addTagValueNode($property)
-        );
+        $this->casts($class)->each(function ($caster, $key) use ($docBlock): void {
+            if (! $this->hasStateMachinePropertyTag($docBlock, $key)) {
+                $docBlock->addTagValueNode(new PropertyTagValueNode(
+                    new IntersectionTypeNode([
+                        new IdentifierTypeNode('\\'.$caster),
+                        new IdentifierTypeNode('\\'.StateMachine::class),
+                    ]),
+                    '$'.$key,
+                    ''
+                ));
+            }
+
+            if (! $this->hasStateMachinePhpstanPropertyTag($docBlock, $key)) {
+                $docBlock->addPhpDocTagNode(new PhpDocTagNode(
+                    '@phpstan-property',
+                    new PropertyTagValueNode(
+                        new IdentifierTypeNode('\\'.StateMachine::class.'<\\'.$caster.'>'),
+                        '$'.$key,
+                        ''
+                    )
+                ));
+            }
+        });
 
         $this->docBlockUpdater->updateRefactoredNodeWithPhpDocInfo($node);
 
         return $node;
     }
 
-    private function prepareDocBlock(Node $node): PhpDocInfo
+    private function hasStateMachinePropertyTag(PhpDocInfo $docBlock, string $key): bool
     {
-        return tap(
-            $this->phpDocInfoFactory->createFromNodeOrEmpty($node),
-            fn (PhpDocInfo $docBlock): null => $this->removeExisting($docBlock)
+        return collect($docBlock->getTagsByName('property'))->contains(
+            fn (PhpDocTagNode $tag) => $tag->value instanceof PropertyTagValueNode
+                && $tag->value->propertyName === '$'.$key
+                && $this->isStateMachineablePropertyType($tag->value)
         );
     }
 
-    private function removeExisting(PhpDocInfo $docBlock): void
+    private function hasStateMachinePhpstanPropertyTag(PhpDocInfo $docBlock, string $key): bool
     {
-        collect($docBlock->getTagsByName('property'))->filter(
+        return collect($docBlock->getTagsByName('phpstan-property'))->contains(
             fn (PhpDocTagNode $tag) => $tag->value instanceof PropertyTagValueNode
-                && $tag->value->type instanceof IdentifierTypeNode
-                && is_a($tag->value->type->name, StateMachineable::class, true)
-        )->each(
-            fn (PhpDocTagNode $tag) => new PhpDocTagRemover()->removeTagValueFromNode($docBlock, $tag->value)
+                && $tag->value->propertyName === '$'.$key
+                && $this->isStateMachineType($tag->value->type)
         );
+    }
+
+    private function isStateMachineType(TypeNode $type): bool
+    {
+        if ($type instanceof IdentifierTypeNode) {
+            return str_contains($type->name, StateMachine::class);
+        }
+
+        if ($type instanceof GenericTypeNode) {
+            return str_contains($type->type->name, StateMachine::class);
+        }
+
+        return false;
+    }
+
+    private function isStateMachineablePropertyType(PropertyTagValueNode $value): bool
+    {
+        if ($value->type instanceof IdentifierTypeNode) {
+            return is_a($value->type->name, StateMachineable::class, true)
+                || str_contains($value->type->name, StateMachine::class);
+        }
+
+        if ($value->type instanceof IntersectionTypeNode) {
+            return collect($value->type->types)->contains(
+                fn ($type) => $type instanceof IdentifierTypeNode && (
+                    is_a($type->name, StateMachineable::class, true)
+                    || ltrim($type->name, '\\') === StateMachine::class
+                )
+            );
+        }
+
+        return false;
     }
 
     /**

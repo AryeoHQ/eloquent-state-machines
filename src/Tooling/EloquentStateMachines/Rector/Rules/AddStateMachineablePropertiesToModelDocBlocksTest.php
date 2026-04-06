@@ -59,6 +59,7 @@ class AddStateMachineablePropertiesToModelDocBlocksTest extends TestCase
         $docComment = $result->getDocComment();
         $this->assertNotNull($docComment);
         $this->assertStringContainsString('@property', $docComment->getText());
+        $this->assertStringContainsString('@phpstan-property', $docComment->getText());
     }
 
     #[Test]
@@ -77,5 +78,44 @@ class AddStateMachineablePropertiesToModelDocBlocksTest extends TestCase
 
         $printer = new \PhpParser\PrettyPrinter\Standard;
         $this->assertSame($printer->prettyPrint([$first]), $printer->prettyPrint([$second]));
+    }
+
+    #[Test]
+    public function it_does_not_duplicate_phpstan_property_after_reparse(): void
+    {
+        $rule = $this->resolveRule(AddStateMachineablePropertiesToModelDocBlocks::class);
+        $path = $this->getFixturePath('../Support/Users/User.php');
+
+        $first = $rule->refactor($this->getClassNode($path));
+
+        $this->assertInstanceOf(Class_::class, $first);
+
+        // Write the modified class back, then re-parse from disk to simulate a real second Rector pass.
+        // This forces the PHPDoc parser to re-parse `StateMachine<Status>` as a GenericTypeNode.
+        $original = file_get_contents($path);
+        $printer = new \PhpParser\PrettyPrinter\Standard;
+
+        try {
+            file_put_contents($path, preg_replace(
+                '/\/\*\*.*?\*\//s',
+                $first->getDocComment()->getText(),
+                $original,
+                1,
+            ));
+
+            $reparsed = $this->getClassNode($path);
+            $second = $rule->refactor($reparsed);
+
+            $this->assertInstanceOf(Class_::class, $second);
+
+            $docComment = $second->getDocComment()->getText();
+            $this->assertSame(
+                1,
+                substr_count($docComment, '@phpstan-property'),
+                'Expected exactly one @phpstan-property tag, got duplicates'
+            );
+        } finally {
+            file_put_contents($path, $original);
+        }
     }
 }

@@ -15,7 +15,12 @@ use Tests\Fixtures\Support\Users\Status\Status;
 /**
  * @property bool $is_trashed
  * @property bool $is_not_trashed
- * @property \Tests\Fixtures\Support\Users\Status\Status $status
+ * @property \Illuminate\Support\Carbon|null $activated_at
+ * @property \Illuminate\Support\Carbon|null $deactivated_at
+ * @property string|null $suspended_at
+ * @property (\Tests\Fixtures\Support\Users\Status\Status & \Support\Database\Eloquent\StateMachines\StateMachine) $status
+ *
+ * @phpstan-property \Support\Database\Eloquent\StateMachines\StateMachine<\Tests\Fixtures\Support\Users\Status\Status> $status
  */
 #[UseFactory(Factory::class)]
 class User extends Model

@@ -13,12 +13,17 @@ use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
+use Support\Actions\Concerns\AsAction;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Throwable;
 
-abstract class Trigger implements Contracts\Trigger
+abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.final, actions.handle
 {
+    use AsAction {
+        now as private actionNow;
+    }
+
     final public readonly StateMachineable&BackedEnum $to;
 
     private Model $model {
@@ -63,37 +68,48 @@ abstract class Trigger implements Contracts\Trigger
         return ! $this->allowed();
     }
 
-    final public function run(): Model
+    final public function now(): Model
     {
-        throw_unless($this->allowed(), Invalid::class, $this->model, $this->to);
+        $this->before();
 
-        $this->dispatchEvent($this->to->events()->before);
+        try {
+            $this->actionNow();
+            $this->after();
+        } catch (Throwable $throwable) {
+            when(
+                method_exists($this, 'failed'),
+                fn () => rescue(fn () => call_user_func([$this, 'failed'], $throwable), report: false)
+            );
 
-        $this->process();
-
-        $this->dispatchEvent($this->to->events()->after);
+            throw $throwable;
+        }
 
         return $this->model;
     }
 
-    private function process(): void
+    /**
+     * @return array<int, callable>
+     */
+    public function middleware(): array
     {
-        throw_unless(method_exists($this, 'handle'), Exceptions\NotProcessable::class, $this);
+        return [function (self $command, callable $next): void {
+            $command->before();
+            $next($command);
+            $command->after();
+        }];
+    }
 
-        rescue(
-            function () {
-                app()->call([$this, 'handle']);
-                $this->transition();
-            },
-            function (Throwable $throwable) {
-                when(
-                    method_exists($this, 'failed'),
-                    fn () => call_user_func([$this, 'failed'], $throwable)
-                );
+    final protected function before(): void
+    {
+        throw_unless($this->allowed(), Invalid::class, $this->model, $this->to);
 
-                throw $throwable;
-            }
-        );
+        $this->dispatchEvent($this->to->events()->before);
+    }
+
+    final protected function after(): void
+    {
+        $this->transition();
+        $this->dispatchEvent($this->to->events()->after);
     }
 
     private function dispatchEvent(string $event): void

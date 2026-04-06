@@ -32,10 +32,10 @@ services:
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggersMustDefineHandle
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TransitionUsingMustBeATrigger
         tags:
             - phpstan.rules.rule
     -
-        class: Tooling\EloquentStateMachines\PhpStan\Rules\TransitionUsingMustBeATrigger
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerCannotUseSerializesModels
         tags:
             - phpstan.rules.rule

@@ -33,7 +33,6 @@ enum Status: string implements StateMachineable
 ```
 
 ### Associate Events
-> Note: If custom before/after events are not defined for each state a `\Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\NotDefined` will be thrown.
 
 #### 1. Create Events
 ```php
@@ -69,6 +68,9 @@ class Activated
 ```
 
 #### 2. Register events
+
+> Note: Every case must have an `#[Events]` attribute. If one is missing, a `\Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\NotDefined` exception will be thrown.
+
 ```php
 namespace Users\Status;
 
@@ -118,6 +120,10 @@ class Suspend extends Trigger
 
 > Note: The `#[Target]` attribute is required to specify which property contains the model being operated on.
 
+A `Trigger` is a specialized [Action](https://github.com/AryeoHQ/actions) — it extends the `Action` contract and uses `AsAction` under the hood, so it can be run synchronously with `->now()` or dispatched to the queue with `->dispatch()`. On top of that, a `Trigger` adds state management, event dispatching, transition logic, and gate checks via `allowed()` and `blocked()`.
+
+> **Note:** `SerializesModels` is intentionally **not** included in `Trigger`. Like [Actions](https://github.com/AryeoHQ/actions), Eloquent models are serialized as-is — preserving the exact state at dispatch time rather than being re-fetched from the database when the job is processed. This ensures the worker operates on the data that was originally provided. If you prefer Laravel's default behavior of storing only the model identifier and rehydrating from the database at processing time, you can add `use \Illuminate\Queue\SerializesModels;` to your individual trigger classes.
+
 #### 2. Register Transition
 ```php
 namespace Users\Status;
@@ -166,10 +172,61 @@ class Upload extends Trigger
 
     public function failed(Throwable $throwable): void
     {
-        $this->user->status->suspend()->run();
+        $this->user->status->suspend()->now();
     }
 }
 ```
+
+### Testing
+
+A `Trigger` is an [Action](https://github.com/AryeoHQ/actions) — test it the same way. Focus on your business logic: `handle()`, `allowed()`, and `failed()`. The lifecycle plumbing (events, transitions, queue middleware) is handled by the package.
+
+#### Testing handle()
+
+Call `->now()` to execute the trigger synchronously and assert the side effects of your business logic.
+
+```php
+$user = User::factory()->registered()->create();
+
+$user->status->activate()->now();
+
+$this->assertNotNull($user->activated_at);
+```
+
+#### Testing allowed()
+
+```php
+$trigger = $user->status->suspend();
+
+$this->assertTrue($trigger->allowed());
+$this->assertFalse($trigger->blocked());
+```
+
+#### Testing failed()
+
+If your trigger defines a `failed()` method, test it by triggering a failure through `->now()`:
+
+```php
+$user = User::factory()->registered()->create();
+
+rescue(fn () => $user->status->upload()->now());
+
+$this->assertEquals(Status::Suspended, $user->refresh()->status->enum);
+```
+
+#### Asserting a trigger was dispatched
+
+When testing code that _dispatches_ a trigger (e.g., a controller or listener), use `::fake()` and `::assertFired()`:
+
+```php
+Activate::fake();
+
+// ... code under test that dispatches Activate ...
+
+Activate::assertFired();
+```
+
+> **Note:** `dispatch()` puts the trigger on the queue. You do not need to test `dispatch()` directly — the package tests the queue integration. Use `->now()` to test your trigger's behavior.
 
 ### Configure Model
 ```php
@@ -205,7 +262,7 @@ class Suspend
 {
     public function handle(User $user)
     {
-        return $user->status->suspend()->run();
+        return $user->status->suspend()->now();
     }
 }
 ```
@@ -244,8 +301,8 @@ This creates a backed enum implementing `StateMachineable` with the `ManagesStat
 ## Diagramming
 To keep your documentation updated a command is included to create Markdown Diagrams of the available State Machines:
 
-<!-- diagram:Tests\Fixtures\Users\Status\Status:start -->
-**`Tests\Fixtures\Users\Status\Status`**
+<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:start -->
+**`Tests\Fixtures\Support\Users\Status\Status`**
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -254,7 +311,7 @@ stateDiagram-v2
     Registered --> Suspended: suspend()
     Activated --> Deactivated: deactivate()
 ```
-<!-- diagram:Tests\Fixtures\Users\Status\Status:end -->
+<!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
 
 ### Usage
 The command offers two primary outcomes.
