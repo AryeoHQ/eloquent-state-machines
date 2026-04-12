@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Fixtures\Support\Users\Status\Triggers;
 
-use RuntimeException;
+use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
+use Support\Database\Eloquent\StateMachines\Triggers\Phases\TransitionDuring;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\User;
-use Throwable;
 
-final class FailedAlsoThrows extends Trigger
+#[TransitionDuring(Phase::Before)]
+final class ThrowsExceptionBeforeTransition extends Trigger
 {
     #[Target]
     public readonly User $user;
@@ -20,11 +21,4 @@ final class FailedAlsoThrows extends Trigger
     {
         throw new Unprocessable;
     }
-
-    public function failed(Throwable $exception): void
-    {
-        throw new RuntimeException('failed() blew up');
-    }
-
-    public function onSuccess(): void {}
 }

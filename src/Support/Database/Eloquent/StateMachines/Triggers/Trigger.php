@@ -6,6 +6,7 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -16,8 +17,11 @@ use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
+use Support\Database\Eloquent\StateMachines\Triggers\Phases\TransitionDuring;
 use Throwable;
 
+#[TransitionDuring(Phase::After)]
 abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.final, actions.handle
 {
     use AsAction {
@@ -25,6 +29,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
     }
 
     final public readonly StateMachineable&BackedEnum $to;
+
+    private TransitionDuring $transitionDuring {
+        get => $this->transitionDuring ??= collect([static::class, ...class_parents($this)])
+            ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(TransitionDuring::class))
+            ->first()
+            ->newInstance();
+    }
 
     private Model $model {
         get => $this->{$this->target()};
@@ -70,11 +81,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
 
     final public function now(): Model
     {
-        $this->before();
-
         try {
-            $this->actionNow();
-            $this->after();
+            $this->lifecycle(fn () => $this->actionNow());
         } catch (Throwable $throwable) {
             when(
                 method_exists($this, 'failed'),
@@ -92,11 +100,16 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
      */
     public function middleware(): array
     {
-        return [function (self $command, callable $next): void {
-            $command->before();
-            $next($command);
-            $command->after();
-        }];
+        return [fn (self $trigger, callable $next) => $trigger->lifecycle(fn () => $next($trigger))];
+    }
+
+    final protected function lifecycle(\Closure $action): void
+    {
+        DB::transaction(function () use ($action) {
+            $this->before();
+            $action();
+            $this->after();
+        });
     }
 
     final protected function before(): void
@@ -104,11 +117,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
         throw_unless($this->allowed(), Invalid::class, $this->model, $this->to);
 
         $this->dispatchEvent($this->to->events()->before);
+        $this->transition(Phase::Before);
     }
 
     final protected function after(): void
     {
-        $this->transition();
+        $this->transition(Phase::After);
+        $this->model->save();
         $this->dispatchEvent($this->to->events()->after);
     }
 
@@ -137,8 +152,12 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
         );
     }
 
-    private function transition(): void
+    private function transition(Phase $phase): void
     {
+        if ($this->transitionDuring->phase !== $phase) {
+            return;
+        }
+
         $name = collect($this->model->getCasts())->filter(
             fn ($cast): bool => $cast === $this->to::class
         )->keys()->first();

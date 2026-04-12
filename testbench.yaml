@@ -1,5 +1,5 @@
 env:
   - PHPSTAN_PATHS=src,tests/Fixtures/Support
   - RECTOR_PATHS=src,tests/Fixtures/Support
-  - PINT_PATHS=src,tests
+  - PINT_PATHS=src,tests,tooling
   - QUEUE_CONNECTION=sync
