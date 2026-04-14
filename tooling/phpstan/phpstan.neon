@@ -1,3 +1,11 @@
+parameters:
+    aryeo:
+        tests:
+            testCaseClass:
+                - Tests\TestCase
+                - PHPStan\Testing\RuleTestCase
+                - PHPStan\Testing\PHPStanTestCase
+
 services:
     -
         class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCanOnlyBeAddedToBackedEnum
@@ -39,3 +47,7 @@ services:
         class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerCannotUseSerializesModels
         tags:
             - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PhpStan\Extensions\TargetPropertyIsAlwaysUsedExtension
+        tags:
+            - phpstan.properties.readWriteExtension
