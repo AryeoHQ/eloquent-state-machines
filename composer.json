@@ -39,7 +39,7 @@
     },
     "require": {
         "php": "^8.4",
-        "aryeo/actions": "0.0.9",
+        "aryeo/actions": "0.0.10",
         "laravel/framework": "12.x",
         "laravel/prompts": "^0.3.7",
         "symfony/console": "^7.3",
@@ -53,7 +53,7 @@
         "orchestra/testbench": "^10.6",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "0.0.34",
+        "aryeo/tooling-laravel": "0.0.35",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7",
         "symplify/rule-doc-generator-contracts": "^11.2"
