@@ -21,6 +21,10 @@ final class StateMachine implements Reference
         $this->stateMachine = $stateMachine;
     }
 
+    public Stringable $stubPath {
+        get => str(__DIR__.'/stubs/state-machine.stub');
+    }
+
     public Stringable $name {
         get => str($this->stateMachine)->studly();
     }
@@ -54,9 +58,9 @@ final class StateMachine implements Reference
     }
 
     public TestClass $test {
-        get => new TestClass(
-            name: $this->name->append('Test'),
-            baseNamespace: $this->namespace,
-        );
+        get => resolve(TestClass::class, [
+            'name' => $this->name->append('Test'),
+            'baseNamespace' => $this->namespace,
+        ]);
     }
 }

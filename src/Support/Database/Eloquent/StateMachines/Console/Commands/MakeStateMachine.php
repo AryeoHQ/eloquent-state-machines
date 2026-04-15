@@ -24,14 +24,12 @@ class MakeStateMachine extends GeneratorCommand implements GeneratesFile
 
     protected $type = 'State Machine';
 
-    public string $stub = __DIR__.'/stubs/state-machine.stub';
-
     public Stringable $nameInput {
         get => str($this->argument('name'));
     }
 
     public StateMachine $reference {
-        get => new StateMachine($this->model, $this->getNameInput());
+        get => resolve(StateMachine::class, ['model' => $this->model, 'stateMachine' => $this->getNameInput()]);
     }
 
     public function handle()

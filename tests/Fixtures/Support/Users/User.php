@@ -51,9 +51,7 @@ class User extends Model
         ]);
     }
 
-    /**
-     * @return Attribute<bool, never>
-     */
+    /** @return Attribute<bool, never> */
     protected function isTrashed(): Attribute
     {
         return Attribute::make(
@@ -61,9 +59,7 @@ class User extends Model
         );
     }
 
-    /**
-     * @return Attribute<bool, never>
-     */
+    /** @return Attribute<bool, never> */
     protected function isNotTrashed(): Attribute
     {
         return Attribute::make(
