@@ -124,6 +124,8 @@ A `Trigger` is a specialized [Action](https://github.com/AryeoHQ/actions) — it
 
 > **Note:** `SerializesModels` is intentionally **not** included in `Trigger`. Like [Actions](https://github.com/AryeoHQ/actions), Eloquent models are serialized as-is — preserving the exact state at dispatch time rather than being re-fetched from the database when the job is processed. This ensures the worker operates on the data that was originally provided. If you prefer Laravel's default behavior of storing only the model identifier and rehydrating from the database at processing time, you can add `use \Illuminate\Queue\SerializesModels;` to your individual trigger classes.
 
+> **Note:** Even though a `Trigger` is an Action, it defines a `final prepare()` method to register lifecycle middleware (transaction boundaries, `before()`/`after()` hooks) that the state machine depends on. Use the `$middleware` property to add your own middleware, and the constructor or `handle()` method parameters for setup and dependency injection.
+
 #### 2. Register Transition
 ```php
 namespace Users\Status;

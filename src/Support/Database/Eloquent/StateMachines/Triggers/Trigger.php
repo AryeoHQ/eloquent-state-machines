@@ -17,9 +17,9 @@ use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\Triggers\Middleware\ThroughLifecycle;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\TransitionDuring;
-use Throwable;
 
 #[TransitionDuring(Phase::After)]
 abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.final, actions.handle
@@ -40,6 +40,18 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
     private Model $model {
         get => $this->{$this->target()};
         set => $this->{$this->target()} = $value;
+    }
+
+    final public function prepare(): void
+    {
+        $this->through([ThroughLifecycle::class, ...$this->middleware]);
+    }
+
+    final public function now(): Model
+    {
+        $this->actionNow();
+
+        return $this->model;
     }
 
     /**
@@ -79,36 +91,22 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.f
         return ! $this->allowed();
     }
 
-    final public function now(): Model
-    {
-        try {
-            $this->lifecycle(fn () => $this->actionNow());
-        } catch (Throwable $throwable) {
-            when(
-                method_exists($this, 'failed'),
-                fn () => rescue(fn () => call_user_func([$this, 'failed'], $throwable), report: false)
-            );
-
-            throw $throwable;
-        }
-
-        return $this->model;
-    }
-
     /**
-     * @return array<int, callable>
+     * NOTE: You may be tempted to just push the `DB::transaction()` into the
+     * overridden `now()`. While that would work when the `Trigger` is
+     * executed `->now()`, if it was executed with `->dispatch()`
+     * the lifecycle flow would execute twice.
+     *
+     * @param  \Closure(): mixed  $action
      */
-    public function middleware(): array
+    final public function lifecycle(\Closure $action): mixed
     {
-        return [fn (self $trigger, callable $next) => $trigger->lifecycle(fn () => $next($trigger))];
-    }
-
-    final protected function lifecycle(\Closure $action): void
-    {
-        DB::transaction(function () use ($action) {
+        return DB::transaction(function () use ($action) {
             $this->before();
-            $action();
+            $result = $action();
             $this->after();
+
+            return $result;
         });
     }
 

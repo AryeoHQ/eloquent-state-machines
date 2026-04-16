@@ -39,7 +39,7 @@
     },
     "require": {
         "php": "^8.4",
-        "aryeo/actions": "0.0.11",
+        "aryeo/actions": "0.0.12",
         "laravel/framework": "12.x",
         "laravel/prompts": "^0.3.7",
         "symfony/console": "^7.3",
