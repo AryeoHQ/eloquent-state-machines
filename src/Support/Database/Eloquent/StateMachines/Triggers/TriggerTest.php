@@ -19,10 +19,14 @@ use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\FailedAlsoThrows;
+use Tests\Fixtures\Support\Users\Status\Triggers\Middleware\RecordExecution;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionWithoutFailed;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithMiddleware;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithSucceeded;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithSucceededAndFailed;
 use Tests\Fixtures\Support\Users\User;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MissingTarget;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MultipleTargets;
@@ -378,5 +382,62 @@ class TriggerTest extends TestCase
         $trigger->dispatch();
 
         $this->assertNotNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_calls_succeeded_when_handle_succeeds_and_run_sync(): void
+    {
+        WithSucceeded::make()->to(Status::Activated)->on(User::factory()->registered()->create())->now();
+
+        $this->assertContains(WithSucceeded::SUCCEEDED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_calls_succeeded_when_handle_succeeds_and_run_async(): void
+    {
+        WithSucceeded::make()->to(Status::Activated)->on(User::factory()->registered()->create())->dispatch();
+
+        $this->assertContains(WithSucceeded::SUCCEEDED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_calls_failed_not_succeeded_when_handle_throws_and_run_sync(): void
+    {
+        rescue(
+            fn () => WithSucceededAndFailed::make()->to(Status::Activated)->on(User::factory()->registered()->make())->now(),
+            report: false,
+        );
+
+        $this->assertContains(WithSucceededAndFailed::FAILED, Context::get(Trigger::class, []));
+        $this->assertNotContains(WithSucceededAndFailed::SUCCEEDED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_calls_failed_not_succeeded_when_handle_throws_and_run_async(): void
+    {
+        try {
+            WithSucceededAndFailed::make()->to(Status::Activated)->on(User::factory()->registered()->make())->dispatch();
+        } catch (Unprocessable) {
+            //
+        }
+
+        $this->assertContains(WithSucceededAndFailed::FAILED, Context::get(Trigger::class, []));
+        $this->assertNotContains(WithSucceededAndFailed::SUCCEEDED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_runs_user_defined_middleware_when_run_sync(): void
+    {
+        WithMiddleware::make()->to(Status::Activated)->on(User::factory()->registered()->create())->now();
+
+        $this->assertContains(RecordExecution::EXECUTED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_runs_user_defined_middleware_when_run_async(): void
+    {
+        WithMiddleware::make()->to(Status::Activated)->on(User::factory()->registered()->create())->dispatch();
+
+        $this->assertContains(RecordExecution::EXECUTED, Context::get(Trigger::class, []));
     }
 }
