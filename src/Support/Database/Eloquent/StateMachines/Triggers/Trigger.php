@@ -22,7 +22,7 @@ use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\TransitionDuring;
 
 #[TransitionDuring(Phase::After)]
-abstract class Trigger implements Contracts\Trigger // @phpstan-ignore actions.final, actions.handle
+abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.final.required, Action.handle.required
 {
     use AsAction {
         now as private actionNow;

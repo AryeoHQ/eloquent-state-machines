@@ -28,11 +28,11 @@ class TriggerCannotUseSerializesModelsTest extends RuleTestCase
     {
         $this->analyse([$this->getSourcePath('Trigger.php')], [
             [
-                'No error with identifier actions.final is reported on line 25.',
+                'No error with identifier Action.final.required is reported on line 25.',
                 25,
             ],
             [
-                'No error with identifier actions.handle is reported on line 25.',
+                'No error with identifier Action.handle.required is reported on line 25.',
                 25,
             ],
         ]);
