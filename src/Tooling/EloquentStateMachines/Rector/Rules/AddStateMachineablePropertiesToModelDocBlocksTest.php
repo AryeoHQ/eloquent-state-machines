@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Tooling\EloquentStateMachines\Rector\Rules;
 
 use PhpParser\Node\Stmt\Class_;
+use PhpParser\NodeFinder;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\ParserFactory;
 use PHPUnit\Framework\Attributes\Test;
 use Symplify\RuleDocGenerator\ValueObject\RuleDefinition;
 use Tests\Fixtures\Tooling\Concerns\GetsFixtures;
@@ -117,5 +121,49 @@ class AddStateMachineablePropertiesToModelDocBlocksTest extends TestCase
         } finally {
             file_put_contents($path, $original);
         }
+    }
+
+    #[Test]
+    public function it_does_not_refactor_anonymous_model_classes(): void
+    {
+        $code = <<<'PHP'
+<?php
+
+namespace Tests\Fixtures\Tooling\EloquentStateMachines;
+
+use Illuminate\Database\Eloquent\Model;
+
+$model = new class extends Model {};
+PHP;
+
+        $nodes = (new ParserFactory)->createForNewestSupportedVersion()->parse($code);
+        $traverser = new NodeTraverser;
+        $traverser->addVisitor(new NameResolver);
+        $nodes = $traverser->traverse($nodes);
+
+        $classNode = (new NodeFinder)->findFirstInstanceOf($nodes, Class_::class);
+
+        $this->assertInstanceOf(Class_::class, $classNode);
+        $this->assertTrue($classNode->isAnonymous());
+
+        $rule = $this->resolveRule(AddStateMachineablePropertiesToModelDocBlocks::class);
+        $result = $rule->refactor($classNode);
+
+        $this->assertNull($result);
+    }
+
+    #[Test]
+    public function it_does_not_refactor_model_without_state_machineable_casts(): void
+    {
+        $classNode = $this->getClassNode(
+            $this->getFixturePath('EloquentStateMachines/ModelWithoutStateMachineableCasts.php')
+        );
+
+        $this->assertInstanceOf(Class_::class, $classNode);
+
+        $rule = $this->resolveRule(AddStateMachineablePropertiesToModelDocBlocks::class);
+        $result = $rule->refactor($classNode);
+
+        $this->assertNull($result);
     }
 }
