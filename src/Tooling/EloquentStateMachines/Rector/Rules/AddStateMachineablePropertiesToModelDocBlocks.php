@@ -36,24 +36,36 @@ final class AddStateMachineablePropertiesToModelDocBlocks extends Rule
 
     public DocBlockUpdater $docBlockUpdater;
 
+    /** @var null|Collection<array-key, mixed> */
+    private null|Collection $stateMachineableCasts = null;
+
     public function __construct(PhpDocInfoFactory $phpDocInfoFactory, DocBlockUpdater $docBlockUpdater)
     {
         $this->phpDocInfoFactory = $phpDocInfoFactory;
         $this->docBlockUpdater = $docBlockUpdater;
     }
 
+    public function prepare(Node $node): void
+    {
+        /** @var Class_ $node */
+        $class = $node->isAnonymous() ? null : $this->getName($node);
+
+        $this->stateMachineableCasts = is_string($class) && is_a($class, Model::class, true)
+            ? $this->casts($class)
+            : collect();
+    }
+
     public function shouldHandle(Node $node): bool
     {
-        return $this->inherits($node, Model::class);
+        return $this->inherits($node, Model::class)
+            && $this->stateMachineableCasts?->isNotEmpty() === true;
     }
 
     public function handle(Node $node): Node
     {
-        $class = $this->getName($node);
-
         $docBlock = $this->phpDocInfoFactory->createFromNodeOrEmpty($node);
 
-        $this->casts($class)->each(function ($caster, $key) use ($docBlock): void {
+        $this->stateMachineableCasts->each(function ($caster, $key) use ($docBlock): void {
             if (! $this->hasStateMachinePropertyTag($docBlock, $key)) {
                 $docBlock->addTagValueNode(new PropertyTagValueNode(
                     new IntersectionTypeNode([
