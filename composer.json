@@ -39,7 +39,7 @@
     },
     "require": {
         "php": "^8.4",
-        "aryeo/actions": "0.0.13",
+        "aryeo/actions": "0.0.14",
         "laravel/framework": "12.x",
         "laravel/prompts": "^0.3.7",
         "symfony/console": "^7.3",
@@ -53,7 +53,7 @@
         "orchestra/testbench": "^10.6",
         "phpunit/phpunit": "^12.4.1",
         "pestphp/pest": "^4.1",
-        "aryeo/tooling-laravel": "0.0.36",
+        "aryeo/tooling-laravel": "0.0.37",
         "nesbot/carbon": "^3.10",
         "orchestra/testbench-core": "^10.7",
         "symplify/rule-doc-generator-contracts": "^11.2"
@@ -72,11 +72,34 @@
         },
         "tooling": {
             "rector": {
+                "config": {
+                    "paths": [
+                        "src",
+                        "tests/Fixtures/Support"
+                    ]
+                },
                 "rules": "tooling/rector/rules.php",
                 "configured_rules": "tooling/rector/configured-rules.php",
                 "skip": "tooling/rector/skip.php"
             },
-            "phpstan": "tooling/phpstan/phpstan.neon"
+            "phpstan": {
+                "config": {
+                    "paths": [
+                        "src",
+                        "tests/Fixtures/Support"
+                    ]
+                },
+                "rules": "tooling/phpstan/phpstan.neon"
+            },
+            "pint": {
+                "config": {
+                    "paths": [
+                        "src",
+                        "tests",
+                        "tooling"
+                    ]
+                }
+            }
         }
     }
 }
