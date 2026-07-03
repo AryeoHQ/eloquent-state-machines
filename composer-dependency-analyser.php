@@ -7,4 +7,5 @@ $config = new Configuration;
 
 return $config
     ->addPathRegexToExclude('~Test(Cases)?\.php$~')
-    ->ignoreErrorsOnPackage('aryeo/tooling-laravel', [ErrorType::DEV_DEPENDENCY_IN_PROD]);
+    ->ignoreErrorsOnPackage('aryeo/tooling-laravel', [ErrorType::DEV_DEPENDENCY_IN_PROD])
+    ->ignoreErrorsOnPackage('phpunit/phpunit', [ErrorType::DEV_DEPENDENCY_IN_PROD]);
