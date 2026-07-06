@@ -18,9 +18,13 @@ use Tests\Fixtures\Support\Users\Status\Events\Suspended;
 use Tests\Fixtures\Support\Users\Status\Events\Suspending;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
+use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
 
 /**
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Onboard onboard()
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Ping ping()
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Activate activate()
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Suspend suspend(?\Carbon\Carbon $at = null)
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Deactivate deactivate()
@@ -30,6 +34,8 @@ enum Status: string implements StateMachineable
     use ManagesState;
 
     #[Events(before: Registering::class, after: Registered::class)]
+    #[Transition(to: self::Registered, using: Onboard::class)]
+    #[Transition(to: self::Registered, using: Ping::class)]
     #[Transition(to: self::Activated, using: Activate::class)]
     #[Transition(to: self::Suspended, using: Suspend::class)]
     case Registered = 'registered';

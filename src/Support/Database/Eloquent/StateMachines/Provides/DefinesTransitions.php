@@ -27,8 +27,8 @@ trait DefinesTransitions
     public function assertDefinesTransitions(self ...$to): static
     {
         Assert::assertEqualsCanonicalizing(
-            collect($to)->map(fn (self $case): string => $case->name)->all(),
-            $this->transitions()->map(fn (Transition $transition): string => $transition->to->name)->all(),
+            collect($to)->map(fn (self $case): string => $case->name)->unique()->values()->all(),
+            $this->transitions()->map(fn (Transition $transition): string => $transition->to->name)->unique()->values()->all(),
             "Transition mismatch on [{$this->name}].",
         );
 

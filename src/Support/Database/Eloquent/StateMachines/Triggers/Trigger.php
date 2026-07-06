@@ -42,6 +42,16 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         set => $this->{$this->target()} = $value;
     }
 
+    private string $field {
+        get => $this->field ??= collect($this->model->getCasts())->filter(
+            fn ($cast): bool => $cast === $this->to::class
+        )->keys()->first();
+    }
+
+    private bool $changesState {
+        get => $this->changesState ??= $this->model->getRawOriginal($this->field) !== $this->to->value;
+    }
+
     final public function prepare(): void
     {
         $this->through([ThroughLifecycle::class, ...$this->middleware]);
@@ -114,15 +124,19 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     {
         throw_unless($this->allowed(), Invalid::class, $this->model, $this->to);
 
-        $this->dispatchEvent($this->to->events()->before);
-        $this->transition(Phase::Before);
+        when($this->changesState, function () {
+            $this->dispatchEvent($this->to->events()->before);
+            $this->transition(Phase::Before);
+        });
     }
 
     final protected function after(): void
     {
-        $this->transition(Phase::After);
+        when($this->changesState, fn () => $this->transition(Phase::After));
+
         $this->model->save();
-        $this->dispatchEvent($this->to->events()->after);
+
+        when($this->changesState, fn () => $this->dispatchEvent($this->to->events()->after));
     }
 
     private function dispatchEvent(string $event): void
@@ -156,11 +170,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             return;
         }
 
-        $name = collect($this->model->getCasts())->filter(
-            fn ($cast): bool => $cast === $this->to::class
-        )->keys()->first();
-
-        $this->model->forceFill([(string) $name => $this->to])->save();
+        $this->model->forceFill([$this->field => $this->to])->save();
     }
 
     /**

@@ -151,6 +151,36 @@ enum Status: string implements StateMachineable
 }
 ```
 
+#### Stationary Transitions
+
+A transition can target the current state. This is useful when a state represents a holding pattern — the trigger executes guarded logic without moving the model to a new state.
+
+```php
+#[Events(before: Locking::class, after: Locked::class)]
+#[Transition(to: self::Locked, using: Triggers\Process::class)]
+#[Transition(to: self::Succeeded, using: Triggers\Succeed::class)]
+#[Transition(to: self::Failed, using: Triggers\Fail::class)]
+case Locked = 'locked';
+```
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Pending
+    Pending --> Locked: lock()
+    Locked --> Locked: process()
+    Locked --> Succeeded: succeed()
+    Locked --> Failed: fail()
+```
+
+When a trigger targets the current state:
+- `allowed()` is still evaluated
+- `handle()` executes normally
+- Before/after events are **not** dispatched
+- The state column is **not** written
+
+This lets you define named, guarded entry points for work within a state without introducing intermediate states into your graph.
+
 #### Failures
 When a particular `Trigger` fails the state machine will not be moved to the target state. However, you may want to alert your users or revert any actions that were partially completed by the trigger. To accomplish that, you may define a `failed` method on your `Trigger`. The `Throwable` instance that caused `handle()` to fail will be passed to `failed()`.
 
@@ -309,6 +339,8 @@ To keep your documentation updated a command is included to create Markdown Diag
 stateDiagram-v2
     direction LR
     [*] --> Registered
+    note right of Registered: onboard()
+    note right of Registered: ping()
     Registered --> Activated: activate()
     Registered --> Suspended: suspend()
     Activated --> Deactivated: deactivate()
