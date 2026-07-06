@@ -17,7 +17,7 @@ trait DefinesTransitionsTestCases
     #[Test]
     public function it_defines_transitions(): void
     {
-        Status::Registered->assertDefinesTransitions(Status::Activated, Status::Suspended);
+        Status::Registered->assertDefinesTransitions(Status::Registered, Status::Activated, Status::Suspended);
         Status::Activated->assertDefinesTransitions(Status::Deactivated);
         Status::Deactivated->assertIsTerminal();
         Status::Suspended->assertIsTerminal();
@@ -26,7 +26,7 @@ trait DefinesTransitionsTestCases
     #[Test]
     public function it_is_order_independent(): void
     {
-        Status::Registered->assertDefinesTransitions(Status::Suspended, Status::Activated);
+        Status::Registered->assertDefinesTransitions(Status::Suspended, Status::Activated, Status::Registered);
     }
 
     #[Test]

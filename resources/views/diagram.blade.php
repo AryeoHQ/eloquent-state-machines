@@ -27,7 +27,11 @@ stateDiagram-v2
 @endif
 @foreach($cases as $case)
 @foreach($case->transitions as $transition)
+@if($case->name === $transition->to)
+    note right of {{ $case->name }}: {{ $transition->trigger }}()
+@else
     {{ $case->name }} --> {{ $transition->to }}: {{ $transition->trigger }}()
+@endif
 @endforeach
 @endforeach
 ```

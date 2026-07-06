@@ -13,6 +13,8 @@ use stdClass;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\Registered;
+use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
@@ -20,6 +22,8 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\FailedAlsoThrows;
 use Tests\Fixtures\Support\Users\Status\Triggers\Middleware\RecordExecution;
+use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
+use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition;
@@ -439,5 +443,45 @@ class TriggerTest extends TestCase
         WithMiddleware::make()->to(Status::Activated)->on(User::factory()->registered()->create())->dispatch();
 
         $this->assertContains(RecordExecution::EXECUTED, Context::get(Trigger::class, []));
+    }
+
+    #[Test]
+    public function it_executes_handle_for_stationary_transition(): void
+    {
+        $trigger = Ping::make()->to(Status::Registered)->on($user = User::factory()->registered()->create());
+
+        $trigger->now();
+
+        $this->assertTrue($user->refresh()->updated_at->isFuture());
+    }
+
+    #[Test]
+    public function it_preserves_inner_state_changes_for_stationary_transition(): void
+    {
+        $trigger = Onboard::make()->to(Status::Registered)->on($user = User::factory()->registered()->create());
+
+        $trigger->now();
+
+        $this->assertNotEquals(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_skips_before_event_for_stationary_transition(): void
+    {
+        Event::fake([Registering::class]);
+
+        Ping::make()->to(Status::Registered)->on(User::factory()->registered()->create())->now();
+
+        Event::assertNotDispatched(Registering::class);
+    }
+
+    #[Test]
+    public function it_skips_after_event_for_stationary_transition(): void
+    {
+        Event::fake([Registered::class]);
+
+        Ping::make()->to(Status::Registered)->on(User::factory()->registered()->create())->now();
+
+        Event::assertNotDispatched(Registered::class);
     }
 }
