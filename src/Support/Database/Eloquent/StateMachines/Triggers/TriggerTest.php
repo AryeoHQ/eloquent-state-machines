@@ -471,6 +471,20 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_does_not_commit_transition_when_released_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        $user = User::factory()->registered()->create();
+
+        WithRelease::make()->to(Status::Activated)->on($user)->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
     public function it_refreshes_the_model_before_failed_when_handle_throws_and_run_sync(): void
     {
         $user = User::factory()->registered()->create();

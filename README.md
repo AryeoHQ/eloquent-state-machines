@@ -209,7 +209,7 @@ class Upload extends Trigger
 }
 ```
 
-The model is refreshed before `failed()` runs, so `failed()` always sees the database's truth — not in-memory state left over from the rolled-back `handle()` work.
+When the lifecycle transaction rolls back (a thrown exception, or a manual `fail()` outside the queue), the model is refreshed before `failed()` runs, so `failed()` sees the database's truth — not in-memory state left over from the rolled-back `handle()` work. On a queue worker a manual `fail()` commits the transaction rather than rolling it back, so no refresh occurs (see below).
 
 #### Manually Failing a Trigger
 
