@@ -111,13 +111,19 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
      */
     final public function lifecycle(\Closure $action): mixed
     {
-        return DB::transaction(function () use ($action) {
-            $this->before();
-            $result = $action();
-            $this->after();
+        try {
+            return DB::transaction(function () use ($action) {
+                $this->before();
+                $result = $action();
+                $this->after();
 
-            return $result;
-        });
+                return $result;
+            });
+        } catch (\Throwable $exception) {
+            rescue(fn () => $this->model->refresh(), report: false);
+
+            throw $exception;
+        }
     }
 
     final protected function before(): void
@@ -132,6 +138,10 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final protected function after(): void
     {
+        if ($this->failedOrReleased()) {
+            return;
+        }
+
         when($this->changesState, fn () => $this->transition(Phase::After));
 
         $this->model->save();

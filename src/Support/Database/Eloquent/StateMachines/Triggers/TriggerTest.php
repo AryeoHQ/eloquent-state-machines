@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
+use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
@@ -18,6 +20,7 @@ use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
+use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\FailedAlsoThrows;
@@ -26,9 +29,13 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
+use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionAfterWrite;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionWithoutFailed;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFail;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFailStationary;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithMiddleware;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithRelease;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithSucceeded;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithSucceededAndFailed;
 use Tests\Fixtures\Support\Users\User;
@@ -483,5 +490,137 @@ class TriggerTest extends TestCase
         Ping::make()->to(Status::Registered)->on(User::factory()->registered()->create())->now();
 
         Event::assertNotDispatched(Registered::class);
+    }
+
+    #[Test]
+    public function it_rolls_back_handle_changes_when_fail_is_called_and_run_sync(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        $this->assertNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_refreshes_the_model_before_failed_when_fail_is_called_and_run_sync(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        $this->assertContains(WithManualFail::FAILED, Context::get(Trigger::class, []));
+        $this->assertNull(Context::get(WithManualFail::ACTIVATED_AT));
+    }
+
+    #[Test]
+    public function it_routes_the_model_through_failed_when_fail_is_called_and_run_sync(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        $this->assertNotNull($user->refresh()->suspended_at);
+    }
+
+    #[Test]
+    public function it_does_not_dispatch_after_event_when_fail_is_called_and_run_sync(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        Event::assertNotDispatched(Activated::class);
+    }
+
+    #[Test]
+    public function it_routes_the_model_through_failed_when_fail_is_called_via_sync_queue_driver(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        try {
+            WithManualFail::make()->to(Status::Activated)->on($user)->dispatch();
+        } catch (ManuallyFailedException) {
+            // expected — the sync driver rethrows after Job::fail()
+        }
+
+        $this->assertNotNull($user->refresh()->suspended_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_commits_handle_changes_and_failure_routing_atomically_when_fail_is_called_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        $user = User::factory()->registered()->create();
+
+        WithManualFail::make()->to(Status::Activated)->on($user)->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $user->refresh();
+
+        $this->assertNotNull($user->activated_at);
+        $this->assertNotNull($user->suspended_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
+
+        $context = Context::get(Trigger::class, []);
+
+        $this->assertCount(1, array_filter($context, fn ($value) => $value === WithManualFail::FAILED));
+    }
+
+    #[Test]
+    public function it_does_not_commit_transition_when_released(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        WithRelease::make()->to(Status::Activated)->on($user)->now();
+
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_refreshes_the_model_before_failed_when_handle_throws_and_run_sync(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => ThrowsExceptionAfterWrite::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        $this->assertContains(ThrowsExceptionAfterWrite::FAILED, Context::get(Trigger::class, []));
+        $this->assertNull(Context::get(ThrowsExceptionAfterWrite::ACTIVATED_AT));
+        $this->assertNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_calls_failed_when_fail_is_called_for_stationary_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WithManualFailStationary::make()->to(Status::Registered)->on($user)->now(), report: false);
+
+        $this->assertContains(WithManualFailStationary::FAILED, Context::get(Trigger::class, []));
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_allows_outer_trigger_to_catch_inner_manual_fail(): void
+    {
+        $user = User::factory()->registered()->create();
+        $inner = User::factory()->registered()->create();
+
+        CatchesInnerManualFail::make($inner)->to(Status::Activated)->on($user)->now();
+
+        $this->assertContains(CatchesInnerManualFail::CAUGHT, Context::get(Trigger::class, []));
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+
+        $inner->refresh();
+
+        $this->assertNull($inner->activated_at);
+        $this->assertNotNull($inner->suspended_at);
+        $this->assertSame(Status::Registered, $inner->status->enum);
     }
 }
