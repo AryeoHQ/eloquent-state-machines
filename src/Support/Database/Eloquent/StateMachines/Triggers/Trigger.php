@@ -140,7 +140,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final protected function after(): void
     {
-        when($this->notFailedOrReleased(), function () {
+        when(! $this->failedOrReleased, function () {
             when($this->changesState, fn () => $this->transition(Phase::After));
 
             $this->model->save();
