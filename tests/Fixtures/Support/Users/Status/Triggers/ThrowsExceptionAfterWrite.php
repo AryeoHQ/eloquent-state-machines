@@ -11,27 +11,27 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\User;
 use Throwable;
 
-final class WithSucceededAndFailed extends Trigger
+final class ThrowsExceptionAfterWrite extends Trigger
 {
-    public const string SUCCEEDED = self::class.'::succeeded';
-
     public const string FAILED = self::class.'::failed';
+
+    public const string ACTIVATED_AT = self::class.'::activated_at';
 
     #[Target]
     public readonly User $user;
 
     public function handle(): void
     {
-        throw new Unprocessable;
-    }
+        $this->user->forceFill([
+            'activated_at' => now(),
+        ])->save();
 
-    public function succeeded(): void
-    {
-        Context::push(Trigger::class, self::SUCCEEDED);
+        throw new Unprocessable;
     }
 
     public function failed(Throwable $exception): void
     {
         Context::push(Trigger::class, self::FAILED);
+        Context::add(self::ACTIVATED_AT, $this->user->activated_at);
     }
 }
