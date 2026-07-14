@@ -111,19 +111,21 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
      */
     final public function lifecycle(\Closure $action): mixed
     {
-        try {
-            return DB::transaction(function () use ($action) {
+        return rescue(
+            fn () => DB::transaction(function () use ($action) {
                 $this->before();
                 $result = $action();
                 $this->after();
 
                 return $result;
-            });
-        } catch (\Throwable $exception) {
-            rescue(fn () => $this->model->refresh(), report: false);
+            }),
+            rescue: function (\Throwable $exception) {
+                rescue(fn () => $this->model->refresh(), report: false);
 
-            throw $exception;
-        }
+                throw $exception;
+            },
+            report: false
+        );
     }
 
     final protected function before(): void
@@ -138,15 +140,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final protected function after(): void
     {
-        if ($this->failedOrReleased()) {
-            return;
-        }
+        when($this->notFailedOrReleased(), function () {
+            when($this->changesState, fn () => $this->transition(Phase::After));
 
-        when($this->changesState, fn () => $this->transition(Phase::After));
+            $this->model->save();
 
-        $this->model->save();
-
-        when($this->changesState, fn () => $this->dispatchEvent($this->to->events()->after));
+            when($this->changesState, fn () => $this->dispatchEvent($this->to->events()->after));
+        });
     }
 
     private function dispatchEvent(string $event): void
