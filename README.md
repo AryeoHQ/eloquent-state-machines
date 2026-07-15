@@ -221,6 +221,44 @@ What the state machine adds on top:
 - **On a queue worker**, `failed()` routes the model *inside* the open lifecycle transaction — `handle()`'s work and the failure routing commit together, atomically.
 - **Outside the queue** (`now()`, `dispatchSync()`), the lifecycle transaction rolls back (discarding `handle()`'s work) before `failed()` routes the model against fresh database state.
 
+#### Opting Out of the Lifecycle Transaction
+
+By default `before()` → `handle()` → `after()` runs inside a `DB::transaction()`, so a thrown exception (or a `fail()` outside the queue) rolls back everything the trigger wrote — all-or-nothing state transitions are the core guarantee of the package.
+
+Some triggers, though, do work the database can't take back: an HTTP call, publishing a message, sending an email. For those the transaction's guarantee doesn't fully apply — the side effect lands in the real world even when the surrounding writes roll back. Such a trigger may deliberately want its writes (audit rows, status stamps) to commit as they happen, so each run leaves a durable record alongside the side effect it performed.
+
+Apply the `#[WithoutTransaction]` attribute to opt a trigger out of the transaction:
+
+```php
+namespace Users\Status\Triggers;
+
+use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
+use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
+use Support\Database\Eloquent\StateMachines\Triggers\WithoutTransaction;
+use Users\User;
+
+#[WithoutTransaction]
+class Send extends Trigger
+{
+    #[Target]
+    public readonly User $user;
+
+    public function handle(): void
+    {
+        // side effects a rollback can't reach...
+    }
+}
+```
+
+When present, `lifecycle()` runs `before()` → `handle()` → `after()` without opening a transaction. Everything else is unchanged: phase transitions, before/after events, and `failed()` semantics all behave as before.
+
+Keep the following in mind when opting out:
+
+- **Writes are not rolled back.** If `handle()` throws (or calls `fail()`), whatever it already wrote stays committed. Because there is nothing to roll back, the model is **not** refreshed before `failed()` runs — `failed()` sees the in-memory state `handle()` left behind.
+- **A `Phase::Before` trigger stays transitioned on failure.** When the transition is written in `before()` (via `#[TransitionDuring(Phase::Before)]`), a later throw in `handle()` leaves the model in the new state, since there is no rollback. The default `Phase::After` transition never lands on a throw because `after()` is never reached.
+- **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[TransitionDuring(...)]`.
+- **Nested transactions still apply.** A `#[WithoutTransaction]` trigger invoked inside another open transaction cannot escape it — its writes are only as durable as the outermost commit.
+
 ### Testing
 
 A `Trigger` is an [Action](https://github.com/AryeoHQ/actions) — test it the same way. Focus on your business logic: `handle()`, `allowed()`, and `failed()`. The lifecycle plumbing (events, transitions, queue middleware) is handled by the package.

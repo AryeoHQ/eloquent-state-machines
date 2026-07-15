@@ -30,6 +30,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFailStationary;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithRelease;
+use Tests\Fixtures\Support\Users\Status\Triggers\WritesWithoutTransaction;
 use Tests\Fixtures\Support\Users\User;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MissingTarget;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MultipleTargets;
@@ -224,6 +225,26 @@ class TriggerTest extends TestCase
         rescue(fn () => ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->on($user)->now());
 
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_persists_handle_changes_when_handle_throws_and_trigger_opts_out_of_transaction(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->on($user)->now());
+
+        $this->assertNotNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_does_not_refresh_the_model_when_handle_throws_and_trigger_opts_out_of_transaction(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->on($user)->now());
+
+        $this->assertNotNull($user->suspended_at);
     }
 
     #[Test]

@@ -37,6 +37,12 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             ->newInstance();
     }
 
+    private bool $withoutTransaction {
+        get => $this->withoutTransaction ??= collect([static::class, ...class_parents($this)])
+            ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(WithoutTransaction::class))
+            ->isNotEmpty();
+    }
+
     private Model $model {
         get => $this->{$this->target()};
         set => $this->{$this->target()} = $value;
@@ -111,16 +117,18 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
      */
     final public function lifecycle(\Closure $action): mixed
     {
-        return rescue(
-            fn () => DB::transaction(function () use ($action) {
-                $this->before();
-                $result = $action();
-                $this->after();
+        $lifecycle = function () use ($action) {
+            $this->before();
+            $result = $action();
+            $this->after();
 
-                return $result;
-            }),
+            return $result;
+        };
+
+        return rescue(
+            fn () => $this->withoutTransaction ? $lifecycle() : DB::transaction($lifecycle),
             rescue: function (\Throwable $exception) {
-                rescue(fn () => $this->model->refresh(), report: false);
+                when(! $this->withoutTransaction, fn () => rescue(fn () => $this->model->refresh(), report: false));
 
                 throw $exception;
             },
