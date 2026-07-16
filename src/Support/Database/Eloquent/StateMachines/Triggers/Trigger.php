@@ -153,7 +153,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             $this->model->save();
 
-            when($this->changesState, fn () => $this->dispatchEvent($this->to->events()->after));
+            when($this->changesState, fn () => DB::afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
     }
 
