@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
+use RuntimeException;
 use stdClass;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
@@ -544,5 +545,25 @@ class TriggerTest extends TestCase
         $this->assertNull($inner->activated_at);
         $this->assertNotNull($inner->suspended_at);
         $this->assertSame(Status::Registered, $inner->status->enum);
+    }
+
+    #[Test]
+    public function it_does_not_roll_back_the_transition_when_the_after_event_listener_throws(): void
+    {
+        Event::listen(function (Activated $event): void {
+            Context::add(Activated::class, true);
+
+            throw new RuntimeException;
+        });
+
+        $user = User::factory()->registered()->create();
+
+        rescue(fn () => Activate::make()->to(Status::Activated)->on($user)->now(), report: false);
+
+        $user->refresh();
+
+        $this->assertTrue(Context::get(Activated::class));
+        $this->assertNotNull($user->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
     }
 }
