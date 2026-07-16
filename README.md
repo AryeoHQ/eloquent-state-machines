@@ -90,6 +90,8 @@ enum Status: string implements StateMachineable
 }
 ```
 
+> **Note:** The `after` event never runs inside the transaction — it fires only after the transition has committed. A throwing listener therefore cannot roll the transition back.
+
 ### Define Transitions
 Transitions are represented by the target state and the trigger used to complete the operation.
 
@@ -223,7 +225,7 @@ What the state machine adds on top:
 
 #### Opting Out of the Lifecycle Transaction
 
-By default `before()` → `handle()` → `after()` runs inside a `DB::transaction()`, so a thrown exception (or a `fail()` outside the queue) rolls back everything the trigger wrote — all-or-nothing state transitions are the core guarantee of the package.
+By default `before()` → `handle()` runs inside a `DB::transaction()`, so a thrown exception (or a `fail()` outside the queue) rolls back everything the trigger wrote — all-or-nothing state transitions are the core guarantee of the package.
 
 Some triggers, though, do work the database can't take back: an HTTP call, publishing a message, sending an email. For those the transaction's guarantee doesn't fully apply — the side effect lands in the real world even when the surrounding writes roll back. Such a trigger may deliberately want its writes (audit rows, status stamps) to commit as they happen, so each run leaves a durable record alongside the side effect it performed.
 
@@ -250,7 +252,7 @@ class Send extends Trigger
 }
 ```
 
-When present, `lifecycle()` runs `before()` → `handle()` → `after()` without opening a transaction. Everything else is unchanged: phase transitions, before/after events, and `failed()` semantics all behave as before.
+When present, `lifecycle()` runs `before()` → `handle()` without opening a transaction. Everything else is unchanged: phase transitions, events, and `failed()` semantics all behave as before.
 
 Keep the following in mind when opting out:
 
