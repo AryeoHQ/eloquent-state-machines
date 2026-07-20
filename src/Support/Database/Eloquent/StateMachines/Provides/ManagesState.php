@@ -42,7 +42,7 @@ trait ManagesState
 
         return with(
             $transitions->first(),
-            fn (Transition $transition): Trigger => $transition->using::make(...$arguments)->to($transition->to)->on($proxy->model)
+            fn (Transition $transition): Trigger => $transition->using::make(...$arguments)->to($transition->to)->from($this)->on($proxy->model)
         );
     }
 

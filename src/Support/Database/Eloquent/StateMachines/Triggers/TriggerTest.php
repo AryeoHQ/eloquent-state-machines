@@ -76,7 +76,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_determines_allowed(): void
     {
-        $trigger = Deactivate::make()->to(Status::Activated)->on($user = User::factory()->registered()->make());
+        $trigger = Deactivate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->make());
 
         $this->assertTrue($trigger->allowed());
     }
@@ -84,7 +84,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_determines_blocked(): void
     {
-        $trigger = Deactivate::make()->to(Status::Activated)->on($user = User::factory()->registered()->make());
+        $trigger = Deactivate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->make());
 
         $this->assertFalse($trigger->blocked());
     }
@@ -92,7 +92,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_executes_handle_when_run_sync(): void
     {
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -102,7 +102,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_resolves_handle_inputs_when_run_sync(): void
     {
-        $trigger = Deactivate::make()->to(Status::Deactivated)->on($user = User::factory()->activated()->create());
+        $trigger = Deactivate::make()->to(Status::Deactivated)->from(Status::Activated)->on($user = User::factory()->activated()->create());
 
         $trigger->now();
 
@@ -112,7 +112,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_accepts_positional_inputs_through_constructor_when_run_sync(): void
     {
-        $trigger = Suspend::make($at = now()->addDays(100))->to(Status::Suspended)->on($user = User::factory()->registered()->create());
+        $trigger = Suspend::make($at = now()->addDays(100))->to(Status::Suspended)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -122,7 +122,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_accepts_named_inputs_through_constructor_when_run_sync(): void
     {
-        $trigger = Suspend::make(at: $at = now()->addDays(100))->to(Status::Suspended)->on($user = User::factory()->registered()->create());
+        $trigger = Suspend::make(at: $at = now()->addDays(100))->to(Status::Suspended)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -134,7 +134,7 @@ class TriggerTest extends TestCase
     {
         $this->freezeTime();
 
-        $trigger = Suspend::make()->to(Status::Suspended)->on($user = User::factory()->registered()->create());
+        $trigger = Suspend::make()->to(Status::Suspended)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -144,7 +144,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_updates_model_status_when_run_sync(): void
     {
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -161,7 +161,7 @@ class TriggerTest extends TestCase
             Event::dispatch(new stdClass);
         });
 
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -179,7 +179,7 @@ class TriggerTest extends TestCase
             Event::dispatch(new stdClass);
         });
 
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -192,7 +192,7 @@ class TriggerTest extends TestCase
     {
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
-        $trigger = Activate::make()->to(Status::Activated)->on(User::factory()->registered()->trashed()->make());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on(User::factory()->registered()->trashed()->make());
 
         $trigger->now();
     }
@@ -202,7 +202,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->make();
 
-        rescue(fn () => ThrowsException::make()->to(Status::Activated)->on($user)->now());
+        rescue(fn () => ThrowsException::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now());
 
         $this->assertSame(Status::Registered, $user->status->enum);
     }
@@ -213,7 +213,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->make();
 
         rescue(
-            fn () => ThrowsException::make()->to(Status::Activated)->on($user)->now(),
+            fn () => ThrowsException::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(),
             fn () => $this->assertNotNull($user->suspended_at)
         );
     }
@@ -223,7 +223,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->on($user)->now());
+        rescue(fn () => ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now());
 
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
     }
@@ -233,7 +233,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->on($user)->now());
+        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now());
 
         $this->assertNotNull($user->refresh()->activated_at);
     }
@@ -243,7 +243,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->on($user)->now());
+        rescue(fn () => WritesWithoutTransaction::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now());
 
         $this->assertNotNull($user->suspended_at);
     }
@@ -255,7 +255,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->on($user)->now());
+        rescue(fn () => ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now());
 
         Event::assertDispatched(Activating::class);
         Event::assertNotDispatched(Activated::class);
@@ -264,7 +264,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_persists_handle_changes_for_before_transition_when_run_sync(): void
     {
-        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -281,7 +281,7 @@ class TriggerTest extends TestCase
             Event::dispatch(new stdClass);
         });
 
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->dispatch();
 
@@ -299,7 +299,7 @@ class TriggerTest extends TestCase
             Event::dispatch(new stdClass);
         });
 
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->dispatch();
 
@@ -310,7 +310,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_updates_model_status_when_run_async(): void
     {
-        $trigger = Activate::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->dispatch();
 
@@ -320,7 +320,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_transitions_before_handle_when_phase_is_before(): void
     {
-        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -331,7 +331,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_transitions_before_handle_when_phase_is_before_and_run_async(): void
     {
-        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->dispatch();
 
@@ -345,7 +345,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->create();
 
         rescue(function () use ($user) {
-            ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->on($user)->dispatch();
+            ThrowsExceptionBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user)->dispatch();
         }, report: false);
 
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
@@ -354,7 +354,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_persists_handle_changes_for_before_transition_when_run_async(): void
     {
-        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->on($user = User::factory()->registered()->create());
+        $trigger = ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->dispatch();
 
@@ -364,7 +364,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_executes_handle_for_stationary_transition(): void
     {
-        $trigger = Ping::make()->to(Status::Registered)->on($user = User::factory()->registered()->create());
+        $trigger = Ping::make()->to(Status::Registered)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -374,7 +374,7 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_preserves_inner_state_changes_for_stationary_transition(): void
     {
-        $trigger = Onboard::make()->to(Status::Registered)->on($user = User::factory()->registered()->create());
+        $trigger = Onboard::make()->to(Status::Registered)->from(Status::Registered)->on($user = User::factory()->registered()->create());
 
         $trigger->now();
 
@@ -386,7 +386,7 @@ class TriggerTest extends TestCase
     {
         Event::fake([Registering::class]);
 
-        Ping::make()->to(Status::Registered)->on(User::factory()->registered()->create())->now();
+        Ping::make()->to(Status::Registered)->from(Status::Registered)->on(User::factory()->registered()->create())->now();
 
         Event::assertNotDispatched(Registering::class);
     }
@@ -396,7 +396,7 @@ class TriggerTest extends TestCase
     {
         Event::fake([Registered::class]);
 
-        Ping::make()->to(Status::Registered)->on(User::factory()->registered()->create())->now();
+        Ping::make()->to(Status::Registered)->from(Status::Registered)->on(User::factory()->registered()->create())->now();
 
         Event::assertNotDispatched(Registered::class);
     }
@@ -406,7 +406,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         $this->assertNull($user->refresh()->activated_at);
         $this->assertSame(Status::Registered, $user->status->enum);
@@ -417,7 +417,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         $this->assertContains(WithManualFail::FAILED, Context::get(Trigger::class, []));
         $this->assertNull(Context::get(WithManualFail::ACTIVATED_AT));
@@ -428,7 +428,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         $this->assertNotNull($user->refresh()->suspended_at);
     }
@@ -440,7 +440,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WithManualFail::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         Event::assertNotDispatched(Activated::class);
     }
@@ -451,7 +451,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->create();
 
         try {
-            WithManualFail::make()->to(Status::Activated)->on($user)->dispatch();
+            WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->dispatch();
         } catch (ManuallyFailedException) {
             // expected — the sync driver rethrows after Job::fail()
         }
@@ -467,7 +467,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        WithManualFail::make()->to(Status::Activated)->on($user)->dispatch();
+        WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user)->dispatch();
 
         app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
 
@@ -487,7 +487,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        WithRelease::make()->to(Status::Activated)->on($user)->now();
+        WithRelease::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
 
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
     }
@@ -499,7 +499,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        WithRelease::make()->to(Status::Activated)->on($user)->dispatch();
+        WithRelease::make()->to(Status::Activated)->from(Status::Registered)->on($user)->dispatch();
 
         app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
 
@@ -511,7 +511,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => ThrowsExceptionAfterWrite::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => ThrowsExceptionAfterWrite::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         $this->assertContains(ThrowsExceptionAfterWrite::FAILED, Context::get(Trigger::class, []));
         $this->assertNull(Context::get(ThrowsExceptionAfterWrite::ACTIVATED_AT));
@@ -523,7 +523,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => WithManualFailStationary::make()->to(Status::Registered)->on($user)->now(), report: false);
+        rescue(fn () => WithManualFailStationary::make()->to(Status::Registered)->from(Status::Registered)->on($user)->now(), report: false);
 
         $this->assertContains(WithManualFailStationary::FAILED, Context::get(Trigger::class, []));
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
@@ -535,7 +535,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->create();
         $inner = User::factory()->registered()->create();
 
-        CatchesInnerManualFail::make($inner)->to(Status::Activated)->on($user)->now();
+        CatchesInnerManualFail::make($inner)->to(Status::Activated)->from(Status::Registered)->on($user)->now();
 
         $this->assertContains(CatchesInnerManualFail::CAUGHT, Context::get(Trigger::class, []));
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
@@ -558,12 +558,51 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        rescue(fn () => Activate::make()->to(Status::Activated)->on($user)->now(), report: false);
+        rescue(fn () => Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now(), report: false);
 
         $user->refresh();
 
         $this->assertTrue(Context::get(Activated::class));
         $this->assertNotNull($user->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_throws_invalid_exception_when_the_model_left_the_starting_state(): void
+    {
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        $user = User::factory()->registered()->create();
+
+        $trigger = $user->status->activate();
+
+        $user->status->suspend()->now();
+
+        $trigger->now();
+    }
+
+    #[Test]
+    public function it_does_not_transition_when_the_model_left_the_starting_state(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $trigger = $user->status->activate();
+
+        $user->status->suspend()->now();
+
+        rescue(fn () => $trigger->now(), report: false);
+
+        $this->assertSame(Status::Suspended, $user->refresh()->status->enum);
+        $this->assertNull($user->activated_at);
+    }
+
+    #[Test]
+    public function it_transitions_when_the_model_is_still_in_the_starting_state(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $user->status->activate()->now();
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
     }
 }
