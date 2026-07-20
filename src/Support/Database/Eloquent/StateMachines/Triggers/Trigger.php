@@ -28,7 +28,9 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         now as private actionNow;
     }
 
-    final public readonly StateMachineable&BackedEnum $to;
+    final public private(set) readonly StateMachineable&BackedEnum $to;
+
+    final public private(set) readonly StateMachineable&BackedEnum $from;
 
     private TransitionDuring $transitionDuring {
         get => $this->transitionDuring ??= collect([static::class, ...class_parents($this)])
@@ -90,6 +92,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         return $this;
     }
 
+    final public function from(StateMachineable&BackedEnum $from): self
+    {
+        $this->from = $from;
+
+        return $this;
+    }
+
     final public function on(Model $model): self
     {
         $this->model = $model;
@@ -138,7 +147,9 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final protected function before(): void
     {
-        throw_unless($this->allowed(), Invalid::class, $this->model, $this->to);
+        $this->preventInvalidTransition();
+
+        $this->preventBlockedTransition();
 
         when($this->changesState, function () {
             $this->dispatchEvent($this->to->events()->before);
@@ -155,6 +166,21 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             when($this->changesState, fn () => DB::afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
+    }
+
+    private function preventInvalidTransition(): void
+    {
+        throw_unless(
+            $this->model->getRawOriginal($this->field) === $this->from->value,
+            Invalid::class,
+            $this->model,
+            $this->to
+        );
+    }
+
+    private function preventBlockedTransition(): void
+    {
+        throw_if($this->blocked(), Invalid::class, $this->model, $this->to);
     }
 
     private function dispatchEvent(string $event): void
