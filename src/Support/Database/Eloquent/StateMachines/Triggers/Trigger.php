@@ -28,9 +28,9 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         now as private actionNow;
     }
 
-    final public private(set) readonly StateMachineable&BackedEnum $to;
+    final public protected(set) readonly StateMachineable&BackedEnum $to;
 
-    final public private(set) readonly StateMachineable&BackedEnum $from;
+    final public protected(set) readonly StateMachineable&BackedEnum $from;
 
     private TransitionDuring $transitionDuring {
         get => $this->transitionDuring ??= collect([static::class, ...class_parents($this)])

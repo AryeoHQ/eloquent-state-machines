@@ -31,6 +31,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFailStationary;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithRelease;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithSerializedModel;
 use Tests\Fixtures\Support\Users\Status\Triggers\WritesWithoutTransaction;
 use Tests\Fixtures\Support\Users\User;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MissingTarget;
@@ -604,5 +605,18 @@ class TriggerTest extends TestCase
         $user->status->activate()->now();
 
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_survives_serialization(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $trigger = WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->on($user);
+
+        $restored = unserialize(serialize($trigger));
+
+        $this->assertSame(Status::Activated, $restored->to);
+        $this->assertSame(Status::Registered, $restored->from);
     }
 }
