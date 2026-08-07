@@ -56,8 +56,18 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         )->keys()->first();
     }
 
+    private null|(StateMachineable&BackedEnum) $current {
+        get => with(
+            $this->model->getRawOriginal($this->field),
+            fn ($original) => match (true) {
+                $original instanceof $this->to => $original,
+                is_null($original) => null,
+                default => $this->to::tryFrom($original instanceof BackedEnum ? $original->value : $original),
+            });
+    }
+
     private bool $changesState {
-        get => $this->changesState ??= $this->model->getRawOriginal($this->field) !== $this->to->value;
+        get => $this->changesState ??= $this->current !== $this->to;
     }
 
     final public function prepare(): void
@@ -171,7 +181,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     private function preventInvalidTransition(): void
     {
         throw_unless(
-            $this->model->getRawOriginal($this->field) === $this->from->value,
+            $this->current === $this->from,
             Invalid::class,
             $this->model,
             $this->to

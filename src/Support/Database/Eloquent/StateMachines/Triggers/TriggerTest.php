@@ -619,4 +619,16 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Activated, $restored->to);
         $this->assertSame(Status::Registered, $restored->from);
     }
+
+    #[Test]
+    public function it_transitions_when_the_raw_original_is_an_enum(): void
+    {
+        $user = User::factory()->registered()->make();
+
+        $this->assertInstanceOf(Status::class, $user->getRawOriginal('status'));
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
 }
