@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use Illuminate\Queue\ManuallyFailedException;
+use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
+use Orchestra\Testbench\Attributes\WithConfig;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
 use RuntimeException;
 use stdClass;
+use Support\Actions\Pipeline\Exceptions\Interrupted;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
@@ -30,6 +34,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionAfterWrite;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithManualFailStationary;
+use Tests\Fixtures\Support\Users\Status\Triggers\WithMiddleware;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithRelease;
 use Tests\Fixtures\Support\Users\Status\Triggers\WithSerializedModel;
 use Tests\Fixtures\Support\Users\Status\Triggers\WritesWithoutTransaction;
@@ -630,5 +635,34 @@ class TriggerTest extends TestCase
         Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
 
         $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    #[WithConfig('cache.default', 'array')]
+    public function it_wraps_the_lifecycle_in_middleware_so_a_blocked_run_never_enters_the_lifecycle(): void
+    {
+        Event::fake([Activating::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $trigger = WithMiddleware::make()->to(Status::Activated)->from(Status::Registered)->on($user);
+
+        $lock = Cache::lock(
+            (new WithoutOverlappingMiddleware(WithMiddleware::KEY))->getLockKey($trigger)
+        );
+
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->expectException(Interrupted::class);
+
+            $trigger->now();
+        } finally {
+            $lock->release();
+
+            Event::assertNotDispatched(Activating::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
     }
 }
