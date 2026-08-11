@@ -72,7 +72,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final public function prepare(): void
     {
-        $this->through([ThroughLifecycle::class, ...$this->middleware]);
+        $this->through([...$this->middleware, ThroughLifecycle::class]);
     }
 
     final public function now(): Model
