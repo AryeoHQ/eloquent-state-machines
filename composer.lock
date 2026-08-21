@@ -4,24 +4,24 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3a16bbc48d0b4790bcb3578360df070e",
+    "content-hash": "3a2122cef0d889f7728328a4d5d1408b",
     "packages": [
         {
             "name": "aryeo/actions",
-            "version": "0.0.20",
+            "version": "0.0.21",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AryeoHQ/actions.git",
-                "reference": "f919dd62b4399e7996151179e00cd38e7e4651b4"
+                "reference": "1a5008506534af4e56319f3ec78c964a98c31c77"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/actions/zipball/f919dd62b4399e7996151179e00cd38e7e4651b4",
-                "reference": "f919dd62b4399e7996151179e00cd38e7e4651b4",
+                "url": "https://api.github.com/repos/AryeoHQ/actions/zipball/1a5008506534af4e56319f3ec78c964a98c31c77",
+                "reference": "1a5008506534af4e56319f3ec78c964a98c31c77",
                 "shasum": ""
             },
             "require": {
-                "aryeo/tooling-laravel": "0.0.38",
+                "aryeo/tooling-laravel": "0.0.39",
                 "laravel/framework": "^12.0",
                 "laravel/prompts": "^0.3",
                 "mockery/mockery": "^1.6",
@@ -114,23 +114,23 @@
                 "laravel"
             ],
             "support": {
-                "source": "https://github.com/AryeoHQ/actions/tree/0.0.20",
+                "source": "https://github.com/AryeoHQ/actions/tree/0.0.21",
                 "issues": "https://github.com/AryeoHQ/actions/issues"
             },
-            "time": "2026-08-20T17:52:22+00:00"
+            "time": "2026-08-21T16:10:00+00:00"
         },
         {
             "name": "aryeo/tooling-laravel",
-            "version": "0.0.38",
+            "version": "0.0.39",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AryeoHQ/tooling-laravel.git",
-                "reference": "e4f699209fb27423e7eb070c78ea5a926631f280"
+                "reference": "9304a2b6c8be3f20a1f2300748e96c557fd3ec1f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/e4f699209fb27423e7eb070c78ea5a926631f280",
-                "reference": "e4f699209fb27423e7eb070c78ea5a926631f280",
+                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/9304a2b6c8be3f20a1f2300748e96c557fd3ec1f",
+                "reference": "9304a2b6c8be3f20a1f2300748e96c557fd3ec1f",
                 "shasum": ""
             },
             "require": {
@@ -224,10 +224,10 @@
             ],
             "description": "Development tooling for Laravel",
             "support": {
-                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/0.0.38",
+                "source": "https://github.com/AryeoHQ/tooling-laravel/tree/0.0.39",
                 "issues": "https://github.com/AryeoHQ/tooling-laravel/issues"
             },
-            "time": "2026-08-20T17:45:06+00:00"
+            "time": "2026-08-21T15:55:44+00:00"
         },
         {
             "name": "brick/math",
