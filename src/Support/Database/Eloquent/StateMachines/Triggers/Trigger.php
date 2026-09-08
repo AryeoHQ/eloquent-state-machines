@@ -195,7 +195,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     private function dispatchEvent(string $event): void
     {
-        Event::dispatch(new $event($this->model));
+        $modelParameter = collect((new ReflectionClass($event))->getConstructor()?->getParameters() ?? [])->first();
+
+        $event = resolve($event, $modelParameter ? [$modelParameter->getName() => $this->model] : []);
+
+        Event::dispatch($event);
     }
 
     private function target(): string
