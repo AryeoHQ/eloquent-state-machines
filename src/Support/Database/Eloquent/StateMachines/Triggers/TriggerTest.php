@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
@@ -191,6 +192,21 @@ class TriggerTest extends TestCase
 
         $this->assertNotNull($user->activated_at);
         Event::assertDispatched(stdClass::class);
+    }
+
+    #[Test]
+    public function it_resolves_the_event_from_the_container(): void
+    {
+        Event::listen(
+            fn (Activating $event) => Context::add(
+                Activating::class,
+                $event->config === $this->app->make(Repository::class)
+            )
+        );
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on(User::factory()->registered()->create())->now();
+
+        $this->assertTrue(Context::get(Activating::class));
     }
 
     #[Test]
