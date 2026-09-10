@@ -44,6 +44,11 @@ class StateMachine implements Contracts\Proxy, Stringable
         return $this->enum === $enum;
     }
 
+    final public function isTerminal(): bool
+    {
+        return $this->enum->transitions()->isEmpty();
+    }
+
     final public function __call(string $name, array $arguments): mixed
     {
         return $this->enum->$name(...$arguments);
