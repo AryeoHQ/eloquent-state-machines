@@ -86,4 +86,15 @@ class StateMachineTest extends TestCase
         $this->assertTrue($stateMachine->is(Status::Registered));
         $this->assertFalse($stateMachine->is(Status::Activated));
     }
+
+    #[Test]
+    public function it_knows_when_a_state_is_terminal(): void
+    {
+        $model = User::factory()->make();
+
+        $this->assertTrue(StateMachine::make($model, Status::Deactivated)->isTerminal());
+        $this->assertTrue(StateMachine::make($model, Status::Suspended)->isTerminal());
+        $this->assertFalse(StateMachine::make($model, Status::Registered)->isTerminal());
+        $this->assertFalse(StateMachine::make($model, Status::Activated)->isTerminal());
+    }
 }
