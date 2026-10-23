@@ -188,6 +188,29 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             $this->to,
             $this->field
         );
+
+        throw_unless(
+            $this->persisted() === $this->from,
+            Invalid::class,
+            $this->model,
+            $this->to
+        );
+    }
+
+    private function persisted(): null|(StateMachineable&BackedEnum)
+    {
+        if (! $this->model->exists) {
+            return $this->current;
+        }
+
+        return with(
+            $this->model->getConnection()
+                ->table($this->model->getTable())
+                ->where($this->model->getKeyName(), $this->model->getKey())
+                ->lockForUpdate()
+                ->value($this->field),
+            fn ($value) => is_null($value) ? null : $this->to::tryFrom($value)
+        );
     }
 
     private function preventBlockedTransition(): void
