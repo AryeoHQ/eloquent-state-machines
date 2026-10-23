@@ -4,21 +4,15 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9d98b210b4c480b9c66e9461dad63cdb",
+    "content-hash": "cba8c0377c495b875102a75a36fae8ad",
     "packages": [
         {
             "name": "aryeo/actions",
             "version": "0.0.23",
-            "source": {
-                "type": "git",
-                "url": "git@github.com:AryeoHQ/actions.git",
-                "reference": "7da043af4de07e2595eeb24c725bf8235fd987de"
-            },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/actions/zipball/7da043af4de07e2595eeb24c725bf8235fd987de",
-                "reference": "7da043af4de07e2595eeb24c725bf8235fd987de",
-                "shasum": ""
+                "url": "https://artifactory.zgtools.net/artifactory/api/composer/listing-and-vendor-management-composer/direct-dists/aryeo/actions/actions-0.0.23.zip",
+                "reference": "c1178d594ac14dc261f6c64bb5722da8d2a8162d"
             },
             "require": {
                 "aryeo/tooling-laravel": "0.0.41",
@@ -112,22 +106,15 @@
                 "Aryeo",
                 "actions",
                 "laravel"
-            ],
-            "time": "2026-10-16T19:01:20+00:00"
+            ]
         },
         {
             "name": "aryeo/tooling-laravel",
             "version": "0.0.41",
-            "source": {
-                "type": "git",
-                "url": "git@github.com:AryeoHQ/tooling-laravel.git",
-                "reference": "215de64d5133dda3b87bc6cbaeefa860264c7619"
-            },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AryeoHQ/tooling-laravel/zipball/215de64d5133dda3b87bc6cbaeefa860264c7619",
-                "reference": "215de64d5133dda3b87bc6cbaeefa860264c7619",
-                "shasum": ""
+                "url": "https://artifactory.zgtools.net/artifactory/api/composer/listing-and-vendor-management-composer/direct-dists/aryeo/tooling-laravel/tooling-laravel-0.0.41.zip",
+                "reference": "d31fa77ce196481820465f12b99f78999e37a27f"
             },
             "require": {
                 "canvural/larastan-strict-rules": "^3.0",
@@ -218,8 +205,7 @@
                     "email": "justinsel@zillowgroup.com"
                 }
             ],
-            "description": "Development tooling for Laravel",
-            "time": "2026-10-16T14:53:25+00:00"
+            "description": "Development tooling for Laravel"
         },
         {
             "name": "brick/math",
