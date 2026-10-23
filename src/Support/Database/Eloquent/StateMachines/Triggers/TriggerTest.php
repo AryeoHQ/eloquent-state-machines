@@ -10,6 +10,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddlewa
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Orchestra\Testbench\Attributes\WithConfig;
 use PHPUnit\Framework\Attributes\Test;
@@ -217,6 +218,20 @@ class TriggerTest extends TestCase
         $trigger = Activate::make()->to(Status::Activated)->from(Status::Registered)->on(User::factory()->registered()->trashed()->make());
 
         $trigger->now();
+    }
+
+    #[Test]
+    public function it_refuses_a_transition_whose_persisted_state_moved_under_it(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
     }
 
     #[Test]
