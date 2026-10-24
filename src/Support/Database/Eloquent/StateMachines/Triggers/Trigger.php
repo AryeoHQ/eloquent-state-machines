@@ -6,7 +6,6 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -145,7 +144,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         };
 
         return rescue(
-            fn () => $this->withoutTransaction ? $lifecycle() : DB::transaction($lifecycle),
+            fn () => $this->withoutTransaction ? $lifecycle() : $this->model->getConnection()->transaction($lifecycle),
             rescue: function (\Throwable $exception) {
                 when(! $this->withoutTransaction, fn () => rescue(fn () => $this->model->refresh(), report: false));
 
@@ -174,7 +173,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             $this->model->save();
 
-            when($this->changesState, fn () => DB::afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
+            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
     }
 
@@ -204,7 +203,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         return with(
             $this->model->getConnection()
                 ->table($this->model->getTable())
-                ->where($this->model->getKeyName(), $this->model->getKey())
+                ->where($this->model->getKeyName(), $this->model->getOriginal($this->model->getKeyName()) ?? $this->model->getKey())
                 ->lockForUpdate()
                 ->value($this->field),
             fn ($value) => is_null($value) ? null : $this->to::tryFrom($value)

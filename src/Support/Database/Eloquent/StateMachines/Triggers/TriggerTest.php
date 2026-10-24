@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Database\QueryException;
 use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Orchestra\Testbench\Attributes\RequiresDatabase;
 use Orchestra\Testbench\Attributes\WithConfig;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
@@ -19,6 +21,7 @@ use RuntimeException;
 use stdClass;
 use Support\Actions\Pipeline\Exceptions\Interrupted;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
+use Tests\Fixtures\Support\Users\SecondaryUser;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
 use Tests\Fixtures\Support\Users\Status\Events\Registered;
@@ -232,6 +235,72 @@ class TriggerTest extends TestCase
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
         Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+    }
+
+    #[Test]
+    public function it_runs_the_lifecycle_in_a_transaction_on_the_model_connection(): void
+    {
+        Event::listen(fn (Activating $event) => Context::push(Activating::class, [
+            $event->model->getConnection()->transactionLevel(),
+            DB::connection()->transactionLevel(),
+        ]));
+
+        Event::listen(fn (Activated $event) => Context::push(Activated::class, $event->model->getConnection()->transactionLevel()));
+
+        $user = new SecondaryUser;
+        $user->save();
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+
+        $this->assertSame([[1, 0]], Context::get(Activating::class));
+        $this->assertSame([0], Context::get(Activated::class));
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_checks_the_persisted_state_by_the_original_key(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $user->forceFill([$user->getKeyName() => $key = $user->getKey() + 1000]);
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+
+        $this->assertSame(Status::Activated, User::query()->findOrFail($key)->status->enum);
+    }
+
+    #[RequiresDatabase('pgsql')]
+    #[Test]
+    public function it_locks_the_persisted_state_until_the_transition_commits(): void
+    {
+        Event::listen(fn (Activating $event) => Context::push(Activating::class, $event->model->getConnection()->getName()));
+
+        $stale = User::factory()->registered()->create();
+
+        $holder = DB::connection('secondary');
+        $holder->beginTransaction();
+
+        try {
+            Activate::make()->to(Status::Activated)->from(Status::Registered)->on(SecondaryUser::query()->findOrFail($stale->getKey()))->now();
+
+            DB::statement("SET lock_timeout = '200ms'");
+
+            try {
+                Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale)->now();
+
+                $this->fail('The transition did not wait for the row lock.');
+            } catch (QueryException $exception) {
+                $this->assertSame('55P03', $exception->getCode());
+            }
+
+            $this->assertSame(['secondary'], Context::get(Activating::class));
+        } finally {
+            $holder->commit();
+        }
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale)->now();
     }
 
     #[Test]
