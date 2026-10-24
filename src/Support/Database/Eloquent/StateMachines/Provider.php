@@ -7,6 +7,7 @@ namespace Support\Database\Eloquent\StateMachines;
 use Illuminate\Support\ServiceProvider;
 use Support\Database\Eloquent\StateMachines\Console\Commands\Diagram;
 use Support\Database\Eloquent\StateMachines\Console\Commands\MakeStateMachine;
+use Support\Database\Eloquent\StateMachines\Guard\StateGuard;
 use Tooling\EloquentStateMachines\Composer\ClassMap\Collectors\StateMachineables;
 use Tooling\EloquentStateMachines\Composer\ClassMap\Collectors\StateMachines;
 
@@ -21,6 +22,7 @@ class Provider extends ServiceProvider
     {
         $this->bootViews();
         $this->bootCommands();
+        $this->bootStateGuard();
     }
 
     private function bootViews(): void
@@ -39,5 +41,13 @@ class Provider extends ServiceProvider
             Diagram::class,
             MakeStateMachine::class,
         ]);
+    }
+
+    private function bootStateGuard(): void
+    {
+        $this->app->make('events')->listen(
+            'eloquent.saving: *',
+            fn (string $event, array $payload) => StateGuard::saving(...$payload)
+        );
     }
 }

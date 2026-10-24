@@ -261,6 +261,53 @@ Keep the following in mind when opting out:
 - **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[TransitionDuring(...)]`.
 - **Nested transactions still apply.** A `#[WithoutTransaction]` trigger invoked inside another open transaction cannot escape it — its writes are only as durable as the outermost commit.
 
+#### The State Guard
+
+A state changes only through a trigger. The package listens to `saving` on every model. When a save changes a column cast to a `StateMachineable` enum, and no trigger is running for that model instance and column, the save throws `StateChangedOutsideTrigger`.
+
+```php
+$user->forceFill(['status' => Status::Activated])->save(); // throws StateChangedOutsideTrigger
+
+$user->status->activate()->now(); // writes the state
+```
+
+- **Inserts pass.** A new model may carry any state, so factories and `$attributes` defaults keep working.
+- **Every trigger path passes.** That covers `now()`, `dispatch()`, a queue worker, `Phase::Before`, `#[WithoutTransaction]`, and a trigger nested inside another trigger's `handle()`.
+- **The guard sees Eloquent saves only.** A query builder `update()`, `DB::table()`, `saveQuietly()` and `withoutEvents()` bypass model events, so the guard does not see them.
+- **The guard is scoped to the instance.** Inside a trigger, a save of a *different* instance of the same row is still refused.
+
+To change a state without a trigger, for a repair or a test fixture, lift the guard for one callback:
+
+```php
+use Support\Database\Eloquent\StateMachines\Guard\StateGuard;
+
+StateGuard::withoutStateGuard(fn () => $user->forceFill(['status' => Status::Activated])->save());
+```
+
+The guard comes back when the callback returns or throws.
+
+#### Replaying a Stored Transition
+
+Another package may need to apply a transition whose new state it already set on the model. `Trigger::replay()` takes a model whose state column holds the target state and whose raw original holds the source state:
+
+```php
+use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
+
+$user->forceFill(['status' => Status::Activated]);
+
+$changes = Trigger::replay($user, 'status'); // ['activated_at' => '2026-10-24 12:00:00']
+```
+
+The replay resolves the trigger from the source case's `#[Transition(to:, using:)]` and runs it through the same pipeline as `now()`:
+
+- The transition check compares the model's raw original against the source state. It skips the persisted-state check, because the caller holds the row.
+- `allowed()` runs, the before event fires, and `handle()` runs.
+- Nothing is saved. The replay returns the model's pending changes, without the state column, and the caller saves them.
+- The after event fires after the outermost commit.
+- The replay opens no transaction, so run it inside the caller's own transaction.
+
+A pair with no `#[Transition]` throws `Invalid`, and so does a blocked transition. While a replay runs, the guard treats it as a running trigger. `handle()` and the before event already see the target state in the state column, and only the raw original still holds the source state.
+
 ### Testing
 
 A `Trigger` is an [Action](https://github.com/AryeoHQ/actions) — test it the same way. Focus on your business logic: `handle()`, `allowed()`, and `failed()`. The lifecycle plumbing (events, transitions, queue middleware) is handled by the package.

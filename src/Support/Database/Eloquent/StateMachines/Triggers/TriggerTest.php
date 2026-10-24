@@ -765,4 +765,87 @@ class TriggerTest extends TestCase
             $this->assertSame(Status::Registered, $user->status->enum);
         }
     }
+
+    #[Test]
+    public function it_replays_a_transition_already_applied_to_the_model(): void
+    {
+        Event::listen(fn (Activating $event) => Context::push(Activating::class, $event->model->getConnection()->transactionLevel()));
+        Event::listen(fn (Activated $event) => Context::push(Activated::class, $event->model->getConnection()->transactionLevel()));
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Activated]);
+
+        $changes = $user->getConnection()->transaction(function () use ($user) {
+            $changes = Trigger::replay($user, 'status');
+
+            $this->assertNull(Context::get(Activated::class));
+
+            return $changes;
+        });
+
+        $this->assertSame([1], Context::get(Activating::class));
+        $this->assertSame([0], Context::get(Activated::class));
+        $this->assertSame(['activated_at'], array_keys($changes));
+        $this->assertSame($user->getAttributes()['activated_at'], $changes['activated_at']);
+    }
+
+    #[Test]
+    public function it_writes_nothing_when_it_replays_a_transition(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Activated]);
+
+        DB::listen(fn ($query) => Context::push(DB::class, $query->sql));
+
+        Trigger::replay($user, 'status');
+
+        $this->assertEmpty(array_filter(Context::get(DB::class, []), fn (string $sql): bool => str($sql)->lower()->startsWith('update')));
+        $this->assertTrue($user->isDirty(['status', 'activated_at']));
+        $this->assertSame(Status::Registered, User::query()->findOrFail($user->getKey())->status->enum);
+        $this->assertNull(User::query()->findOrFail($user->getKey())->activated_at);
+    }
+
+    #[Test]
+    public function it_replays_a_transition_whose_persisted_state_already_moved(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $changes = Trigger::replay($user->forceFill(['status' => Status::Activated]), 'status');
+
+        $this->assertArrayHasKey('activated_at', $changes);
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_blocked_transition(): void
+    {
+        $user = User::factory()->registered()->trashed()->create()->forceFill(['status' => Status::Activated]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_pair_without_a_transition(): void
+    {
+        $user = User::factory()->activated()->create()->forceFill(['status' => Status::Registered]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_treats_a_replay_as_a_running_trigger(): void
+    {
+        Event::listen(fn (Activating $event) => $event->model->save());
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Activated]);
+
+        Trigger::replay($user, 'status');
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
 }

@@ -6,7 +6,6 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionMethod;
@@ -16,6 +15,7 @@ use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
+use Support\Database\Eloquent\StateMachines\Guard\StateGuard;
 use Support\Database\Eloquent\StateMachines\Triggers\Middleware\ThroughLifecycle;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\TransitionDuring;
@@ -56,17 +56,20 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     }
 
     private null|(StateMachineable&BackedEnum) $current {
-        get => with(
-            $this->model->getRawOriginal($this->field),
-            fn ($original) => match (true) {
-                $original instanceof $this->to => $original,
-                is_null($original) => null,
-                default => $this->to::tryFrom($original instanceof BackedEnum ? $original->value : $original),
-            });
+        get => self::state($this->to::class, $this->model->getRawOriginal($this->field));
     }
 
     private bool $changesState {
         get => $this->changesState ??= $this->current !== $this->to;
+    }
+
+    private bool $replaying = false;
+
+    /** @var array<string, mixed> */
+    private array $pending = [];
+
+    private bool $transactional {
+        get => ! $this->withoutTransaction && ! $this->replaying;
     }
 
     final public function prepare(): void
@@ -79,6 +82,44 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         $this->actionNow();
 
         return $this->model;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    final public static function replay(Model $model, string $field): array
+    {
+        $cast = $model->getCasts()[$field] ?? null;
+
+        throw_unless(
+            is_string($cast) && is_a($cast, StateMachineable::class, true) && is_a($cast, BackedEnum::class, true),
+            InvalidArgumentException::class,
+            "[{$field}] on [".class_basename($model::class).'] is not a state machine.'
+        );
+
+        $to = self::state($cast, $model->getAttributes()[$field] ?? null);
+        $from = self::state($cast, $model->getRawOriginal($field));
+
+        throw_if(is_null($to), InvalidArgumentException::class, "[{$field}] on [".class_basename($model::class).'] holds no state to replay.');
+
+        throw_if(is_null($from), Invalid::class, $model, $to);
+
+        $transitions = $from->transitions()->filter(fn ($transition): bool => $transition->to === $to);
+
+        throw_unless($transitions->isNotEmpty(), Invalid::class, $model, $to);
+
+        throw_unless($transitions->count() === 1, Exceptions\Duplicate::class, $to->name, $from);
+
+        return with(
+            $transitions->first()->using::make()->to($to)->from($from)->on($model),
+            function (self $trigger): array {
+                $trigger->replaying = true;
+
+                $trigger->actionNow();
+
+                return $trigger->pending;
+            }
+        );
     }
 
     /**
@@ -143,15 +184,15 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             return $result;
         };
 
-        return rescue(
-            fn () => $this->withoutTransaction ? $lifecycle() : $this->model->getConnection()->transaction($lifecycle),
+        return StateGuard::running($this->model, $this->field, fn () => rescue(
+            fn () => $this->transactional ? $this->model->getConnection()->transaction($lifecycle) : $lifecycle(),
             rescue: function (\Throwable $exception) {
-                when(! $this->withoutTransaction, fn () => rescue(fn () => $this->model->refresh(), report: false));
+                when($this->transactional, fn () => rescue(fn () => $this->model->refresh(), report: false));
 
                 throw $exception;
             },
             report: false
-        );
+        ));
     }
 
     final protected function before(): void
@@ -171,7 +212,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         when(! $this->failedOrReleased, function () {
             when($this->changesState, fn () => $this->transition(Phase::After));
 
-            $this->model->save();
+            if ($this->replaying) {
+                $this->pending = collect($this->model->getDirty())->except($this->field)->all();
+            } else {
+                $this->model->save();
+            }
 
             when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
@@ -187,7 +232,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         );
 
         throw_unless(
-            $this->persisted() === $this->from,
+            $this->replaying || $this->persisted() === $this->from,
             Invalid::class,
             $this->model,
             $this->to
@@ -221,7 +266,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
         $event = resolve($event, $modelParameter ? [$modelParameter->getName() => $this->model] : []);
 
-        Event::dispatch($event);
+        event($event);
     }
 
     private function target(): string
@@ -246,11 +291,23 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     private function transition(Phase $phase): void
     {
-        if ($this->transitionDuring->phase !== $phase) {
+        if ($this->replaying || $this->transitionDuring->phase !== $phase) {
             return;
         }
 
         $this->model->forceFill([$this->field => $this->to])->save();
+    }
+
+    /**
+     * @param  class-string<StateMachineable&BackedEnum>  $enum
+     */
+    private static function state(string $enum, mixed $value): null|(StateMachineable&BackedEnum)
+    {
+        return match (true) {
+            $value instanceof $enum => $value,
+            is_null($value) => null,
+            default => $enum::tryFrom($value instanceof BackedEnum ? $value->value : $value),
+        };
     }
 
     /**
