@@ -70,13 +70,14 @@ jobs:
         os: [ubuntu-latest]
         php: [8.5]
         laravel: [12.*, 13.*]
+        database: [sqlite, pgsql]
         include:
           - laravel: 12.*
             testbench: 10.*
           - laravel: 13.*
             testbench: 11.*
 
-    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.os }}
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.database }} - ${{ matrix.os }}
 
     steps:
       - name: Checkout ref
@@ -88,6 +89,32 @@ jobs:
           php_version: ${{ matrix.php }}
           coverage: pcov
 
+      - name: Start PostgreSQL
+        if: matrix.database == 'pgsql'
+        run: |
+          docker network create php-ci-postgres
+          docker run --detach --name postgres --network php-ci-postgres \
+            -e POSTGRES_DB=testing -e POSTGRES_PASSWORD=secret \
+            --health-cmd "pg_isready -U postgres -d testing" \
+            --health-interval 2s --health-timeout 3s --health-retries 30 \
+            postgres:16
+          for attempt in $(seq 60); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' postgres)" = healthy ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs postgres
+          echo "::error::PostgreSQL did not become healthy"
+          exit 1
+
+      - name: Join php-ci to the PostgreSQL network
+        if: matrix.database == 'pgsql'
+        run: |
+          wrapper="$RUNNER_TEMP/php-ci/bin/php-ci"
+          sed -i "s|exec docker run --rm |exec docker run --rm --network php-ci-postgres -e DB_CONNECTION=pgsql -e DB_HOST=postgres |" "$wrapper"
+          grep -q -- "--network php-ci-postgres" "$wrapper" || { echo "::error::$wrapper no longer starts with 'exec docker run --rm'"; exit 1; }
+
       - name: Install Composer dependencies
         run: php-ci composer install --no-interaction
 
@@ -95,9 +122,15 @@ jobs:
         run: php-ci composer show -D
 
       - name: Run tests
+        if: matrix.database == 'sqlite'
         run: php-ci ./vendor/bin/testbench package:test --parallel --coverage-cobertura coverage.xml
 
+      - name: Run tests on PostgreSQL
+        if: matrix.database == 'pgsql'
+        run: php-ci ./vendor/bin/testbench package:test
+
       - name: Code Coverage Report
+        if: matrix.database == 'sqlite'
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage.xml
@@ -112,7 +145,7 @@ jobs:
 
       - name: Add Coverage PR Comment
         uses: marocchino/sticky-pull-request-comment@v2
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.database == 'sqlite'
         with:
           recreate: true
           path: code-coverage-results.md
