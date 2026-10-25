@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 use Orchestra\Testbench\Attributes\WithConfig;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,6 +24,9 @@ use RuntimeException;
 use stdClass;
 use Support\Actions\Pipeline\Exceptions\Interrupted;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
+use Tests\Fixtures\Support\Users\DualStatusUser;
+use Tests\Fixtures\Support\Users\Plan\Plan;
+use Tests\Fixtures\Support\Users\PlanUser;
 use Tests\Fixtures\Support\Users\SecondaryUser;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
@@ -847,5 +853,95 @@ class TriggerTest extends TestCase
         Trigger::replay($user, 'status');
 
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_replays_the_given_column_when_two_columns_cast_to_one_enum(): void
+    {
+        $user = (new DualStatusUser)
+            ->setRawAttributes(['status' => Status::Activated->value, 'secondary_status' => Status::Registered->value], true)
+            ->forceFill(['secondary_status' => Status::Activated]);
+
+        $changes = Trigger::replay($user, 'secondary_status');
+
+        $this->assertSame(['activated_at'], array_keys($changes));
+    }
+
+    #[Test]
+    public function it_marks_the_given_column_while_it_replays(): void
+    {
+        Schema::table('users', fn (Blueprint $table) => $table->string('secondary_status')->nullable());
+
+        Event::listen(fn (Activating $event) => $event->model->save());
+
+        $user = (new DualStatusUser)->forceFill(['status' => Status::Activated, 'secondary_status' => Status::Registered]);
+        $user->save();
+
+        Trigger::replay($user->forceFill(['secondary_status' => Status::Activated]), 'secondary_status');
+
+        $stored = DualStatusUser::query()->findOrFail($user->getKey());
+
+        $this->assertSame(Status::Activated, $stored->secondary_status->enum);
+        $this->assertSame(Status::Activated, $stored->status->enum);
+    }
+
+    #[Test]
+    public function it_returns_only_the_changes_the_replay_made(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['name' => 'Ada']);
+
+        $changes = Trigger::replay($user->forceFill(['status' => Status::Activated]), 'status');
+
+        $this->assertSame(['activated_at'], array_keys($changes));
+    }
+
+    #[Test]
+    public function it_names_the_source_when_it_refuses_a_replay_without_a_transition(): void
+    {
+        $user = User::factory()->activated()->create()->forceFill(['status' => Status::Registered]);
+
+        $this->expectExceptionMessage('Invalid transition from [Activated] to [Registered] on [User].');
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_names_the_source_when_it_refuses_a_blocked_replay(): void
+    {
+        $user = User::factory()->registered()->trashed()->create()->forceFill(['status' => Status::Activated]);
+
+        $this->expectExceptionMessage('Invalid transition from [Registered] to [Activated] on [User].');
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_replays_with_the_default_of_an_optional_trigger_argument(): void
+    {
+        $this->freezeTime();
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Suspended]);
+
+        $changes = Trigger::replay($user, 'status');
+
+        $this->assertSame(['suspended_at'], array_keys($changes));
+        $this->assertEquals(now()->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_transition_whose_trigger_requires_an_unresolvable_argument(): void
+    {
+        Event::listen(fn (Activating $event) => Context::add(Activating::class, true));
+
+        $user = (new PlanUser)->setRawAttributes(['plan' => Plan::Free->value], true)->forceFill(['plan' => Plan::Paid]);
+
+        try {
+            Trigger::replay($user, 'plan');
+
+            $this->fail('The replay built a trigger without its required argument.');
+        } catch (BindingResolutionException) {
+            $this->assertNull(Context::get(Activating::class));
+            $this->assertNull($user->activated_at);
+        }
     }
 }

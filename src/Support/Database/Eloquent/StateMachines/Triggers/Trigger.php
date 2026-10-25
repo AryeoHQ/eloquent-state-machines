@@ -63,7 +63,14 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         get => $this->changesState ??= $this->current !== $this->to;
     }
 
+    private null|(StateMachineable&BackedEnum) $source {
+        get => $this->replaying ? $this->from : self::state($this->to::class, $this->model->getAttributes()[$this->field] ?? null);
+    }
+
     private bool $replaying = false;
+
+    /** @var array<string, mixed> */
+    private array $snapshot = [];
 
     /** @var array<string, mixed> */
     private array $pending = [];
@@ -106,14 +113,16 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
         $transitions = $from->transitions()->filter(fn ($transition): bool => $transition->to === $to);
 
-        throw_unless($transitions->isNotEmpty(), Invalid::class, $model, $to);
+        throw_unless($transitions->isNotEmpty(), Invalid::class, $model, $to, $from);
 
         throw_unless($transitions->count() === 1, Exceptions\Duplicate::class, $to->name, $from);
 
         return with(
             $transitions->first()->using::make()->to($to)->from($from)->on($model),
-            function (self $trigger): array {
+            function (self $trigger) use ($model, $field): array {
+                $trigger->field = $field;
                 $trigger->replaying = true;
+                $trigger->snapshot = $model->getAttributes();
 
                 $trigger->actionNow();
 
@@ -213,7 +222,9 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             when($this->changesState, fn () => $this->transition(Phase::After));
 
             if ($this->replaying) {
-                $this->pending = collect($this->model->getDirty())->except($this->field)->all();
+                $this->pending = collect($this->model->getAttributes())->except($this->field)->reject(
+                    fn ($value, string $key): bool => array_key_exists($key, $this->snapshot) && $this->snapshot[$key] === $value
+                )->all();
             } else {
                 $this->model->save();
             }
@@ -228,14 +239,16 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             $this->current === $this->from,
             Invalid::class,
             $this->model,
-            $this->to
+            $this->to,
+            $this->source
         );
 
         throw_unless(
             $this->replaying || $this->persisted() === $this->from,
             Invalid::class,
             $this->model,
-            $this->to
+            $this->to,
+            $this->source
         );
     }
 
@@ -257,7 +270,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     private function preventBlockedTransition(): void
     {
-        throw_if($this->blocked(), Invalid::class, $this->model, $this->to);
+        throw_if($this->blocked(), Invalid::class, $this->model, $this->to, $this->source);
     }
 
     private function dispatchEvent(string $event): void

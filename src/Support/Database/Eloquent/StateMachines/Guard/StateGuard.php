@@ -54,17 +54,23 @@ final class StateGuard
         }
     }
 
-    public static function saving(Model $model): void
+    public static function updating(Model $model): void
     {
-        if (! $model->exists || self::$lifted > 0) {
+        if (self::$lifted > 0) {
+            return;
+        }
+
+        $fields = collect($model->getCasts())
+            ->filter(fn ($cast): bool => is_a($cast, StateMachineable::class, true))
+            ->keys();
+
+        if ($fields->isEmpty()) {
             return;
         }
 
         $dirty = $model->getDirty();
 
-        collect($model->getCasts())
-            ->filter(fn ($cast): bool => is_a($cast, StateMachineable::class, true))
-            ->keys()
+        $fields
             ->filter(fn (string $field): bool => array_key_exists($field, $dirty))
             ->reject(fn (string $field): bool => self::backing($dirty[$field]) === self::backing($model->getRawOriginal($field)))
             ->reject(fn (string $field): bool => (self::$running[$model][$field] ?? 0) > 0)

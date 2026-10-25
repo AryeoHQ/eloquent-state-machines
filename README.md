@@ -263,7 +263,7 @@ Keep the following in mind when opting out:
 
 #### The State Guard
 
-A state changes only through a trigger. The package listens to `saving` on every model. When a save changes a column cast to a `StateMachineable` enum, and no trigger is running for that model instance and column, the save throws `StateChangedOutsideTrigger`.
+A state changes only through a trigger. The package listens to `updating` on every model. When an update changes a column cast to a `StateMachineable` enum, and no trigger is running for that model instance and column, the update throws `StateChangedOutsideTrigger`. That covers `save()`, `update()`, and the extra columns of `increment()` and `decrement()`.
 
 ```php
 $user->forceFill(['status' => Status::Activated])->save(); // throws StateChangedOutsideTrigger
@@ -273,7 +273,12 @@ $user->status->activate()->now(); // writes the state
 
 - **Inserts pass.** A new model may carry any state, so factories and `$attributes` defaults keep working.
 - **Every trigger path passes.** That covers `now()`, `dispatch()`, a queue worker, `Phase::Before`, `#[WithoutTransaction]`, and a trigger nested inside another trigger's `handle()`.
-- **The guard sees Eloquent saves only.** A query builder `update()`, `DB::table()`, `saveQuietly()` and `withoutEvents()` bypass model events, so the guard does not see them.
+- **The guard sees only updates that raise model events.** These bypass it:
+  - `saveQuietly()` and `updateQuietly()`.
+  - Any write inside `Model::withoutEvents()`.
+  - A query builder update, through `Model::query()->update()` or `DB::table()`.
+  - A save of a model whose `$dispatchesEvents['updating']` event has a listener that returns a non-empty value. Eloquent then skips the `eloquent.updating` event the guard listens to.
+- **`Event::fake()` with no arguments disables the guard.** It fakes the `eloquent.updating` events too. Fake specific events instead, for example `Event::fake([Activated::class])`, to keep the guard active.
 - **The guard is scoped to the instance.** Inside a trigger, a save of a *different* instance of the same row is still refused.
 
 To change a state without a trigger, for a repair or a test fixture, lift the guard for one callback:
@@ -302,11 +307,23 @@ The replay resolves the trigger from the source case's `#[Transition(to:, using:
 
 - The transition check compares the model's raw original against the source state. It skips the persisted-state check, because the caller holds the row.
 - `allowed()` runs, the before event fires, and `handle()` runs.
-- Nothing is saved. The replay returns the model's pending changes, without the state column, and the caller saves them.
+- Nothing is saved. The replay returns the attributes `handle()` changed, without the state column, and the caller saves them. Attributes the caller changed before the replay are not in the return.
 - The after event fires after the outermost commit.
 - The replay opens no transaction, so run it inside the caller's own transaction.
 
-A pair with no `#[Transition]` throws `Invalid`, and so does a blocked transition. While a replay runs, the guard treats it as a running trigger. `handle()` and the before event already see the target state in the state column, and only the raw original still holds the source state.
+A pair with no `#[Transition]` throws `Invalid`, and so does a blocked transition. While a replay runs, the guard treats it as a running trigger for the given column.
+
+A replay differs from `now()` in these ways:
+
+- **The trigger takes no arguments.** The replay builds it with `make()`. An optional constructor argument takes its default. A required argument that the container cannot resolve makes the transition unreplayable: the replay throws before the before event and `handle()`.
+- **The target state is already in the attribute.** `handle()`, the before event listeners and `failed()` see the target state in the state column. Only the raw original still holds the source state.
+- **`failed()` runs after the replay ends.** The guard no longer treats the model as running, and the state column is still dirty. A save in `failed()` therefore throws `StateChangedOutsideTrigger`, which the dispatcher reports and does not rethrow. Any other write in `failed()` rolls back when the caller's transaction rolls back.
+
+After a replay, the guard refuses an Eloquent save of the state column. To save the model or raise its model events, wrap that work in `StateGuard::running()`. It exempts only that model instance and column, while `withoutStateGuard()` lifts the guard for every model:
+
+```php
+StateGuard::running($user, 'status', fn () => $user->save());
+```
 
 ### Testing
 

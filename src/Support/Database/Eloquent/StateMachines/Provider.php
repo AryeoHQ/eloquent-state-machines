@@ -46,8 +46,8 @@ class Provider extends ServiceProvider
     private function bootStateGuard(): void
     {
         $this->app->make('events')->listen(
-            'eloquent.saving: *',
-            fn (string $event, array $payload) => StateGuard::saving(...$payload)
+            'eloquent.updating: *',
+            fn (string $event, array $payload) => StateGuard::updating(...$payload)
         );
     }
 }
