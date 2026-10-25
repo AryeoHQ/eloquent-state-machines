@@ -319,7 +319,7 @@ The replay resolves the trigger from the source case's `#[Transition(to:, using:
 
 The caller must hold the row lock for the whole replay. Load the model with `lockForUpdate()`, as the example does, or update the row earlier in the same transaction. Without the lock, two concurrent replays of one transition both pass the transition check, and both run `handle()`.
 
-To pass the trigger's constructor arguments, give the replay a third parameter. Its keys are the constructor's parameter names:
+To pass the trigger's constructor arguments, pass the replay a third argument. Its keys are the constructor's parameter names:
 
 ```php
 $changes = Trigger::replay($user, 'status', ['at' => $suspendedAt]);

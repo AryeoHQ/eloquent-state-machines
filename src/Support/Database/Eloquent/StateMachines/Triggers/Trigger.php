@@ -92,7 +92,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     }
 
     /**
-     * @param  array<int|string, mixed>  $arguments
+     * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
     final public static function replay(Model $model, string $field, array $arguments = []): array

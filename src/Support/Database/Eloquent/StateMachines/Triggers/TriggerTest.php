@@ -991,6 +991,20 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_matches_the_names_of_the_replay_arguments_regardless_of_case(): void
+    {
+        $this->freezeTime();
+
+        $at = now()->subYear();
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Suspended]);
+
+        Trigger::replay($user, 'status', ['AT' => $at]);
+
+        $this->assertEquals($at->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
     public function it_replays_with_a_required_argument_of_the_trigger(): void
     {
         $user = (new PlanUser)->setRawAttributes(['plan' => Plan::Free->value], true)->forceFill(['plan' => Plan::Paid]);
@@ -1035,7 +1049,7 @@ class TriggerTest extends TestCase
 
         $this->expectExceptionObject(new InvalidArgumentException('Replay arguments for [Suspend] must be named.'));
 
-        Trigger::replay($user, 'status', [now()]);
+        Trigger::replay($user, 'status', [now()]); // @phpstan-ignore argument.type
     }
 
     #[Test]
