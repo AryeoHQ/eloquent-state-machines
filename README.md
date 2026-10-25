@@ -319,10 +319,19 @@ The replay resolves the trigger from the source case's `#[Transition(to:, using:
 
 The caller must hold the row lock for the whole replay. Load the model with `lockForUpdate()`, as the example does, or update the row earlier in the same transaction. Without the lock, two concurrent replays of one transition both pass the transition check, and both run `handle()`.
 
+To pass the trigger's constructor arguments, give the replay a third parameter. Its keys are the constructor's parameter names:
+
+```php
+$changes = Trigger::replay($user, 'status', ['at' => $suspendedAt]);
+```
+
+The replay accepts named arguments only.
+
 The replay throws in these cases:
 
 - `InvalidArgumentException` when the column does not cast to a state machine, or when it holds no case of that state machine.
 - `InvalidArgumentException` when the raw original holds no case of the state machine.
+- `InvalidArgumentException` when an argument is positional, or when the trigger's constructor does not declare it. The replay then throws before the before event and `handle()`.
 - `Invalid` when no `#[Transition]` on the source case leads to the target state.
 - `Duplicate` when more than one `#[Transition]` on the source case leads to the target state.
 - `Invalid` when `allowed()` returns `false`. The replay then throws before the before event and `handle()`.
@@ -331,7 +340,7 @@ While a replay runs, the guard treats it as a running trigger for the given colu
 
 A replay differs from `now()` in these ways:
 
-- **The trigger takes no arguments.** The replay builds it with `make()`. An optional constructor argument takes its default. A required argument that the container cannot resolve makes the transition unreplayable: the replay throws before the before event and `handle()`.
+- **The trigger takes only the arguments the caller passes.** The replay builds it with `make(...$arguments)`. An optional constructor argument that the caller does not pass takes its default. A required argument that the caller does not pass and the container cannot resolve makes the transition unreplayable: the replay throws before the before event and `handle()`.
 - **The target state is already in the attribute.** `handle()`, the before event listeners and `failed()` see the target state in the state column. Only the raw original still holds the source state.
 - **`failed()` runs after the replay ends.** The guard no longer treats the model as running, and the state column is still dirty. A save in `failed()` therefore throws `StateChangedOutsideTrigger`, which the dispatcher reports and does not rethrow. Any other write in `failed()` rolls back when the caller's transaction rolls back.
 

@@ -92,9 +92,10 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     }
 
     /**
+     * @param  array<int|string, mixed>  $arguments
      * @return array<string, mixed>
      */
-    final public static function replay(Model $model, string $field): array
+    final public static function replay(Model $model, string $field, array $arguments = []): array
     {
         $cast = $model->getCasts()[$field] ?? null;
 
@@ -117,8 +118,10 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
         throw_unless($transitions->count() === 1, Exceptions\Duplicate::class, $to->name, $from);
 
+        self::ensureDeclared($transitions->first()->using, $arguments);
+
         return with(
-            $transitions->first()->using::make()->to($to)->from($from)->on($model),
+            $transitions->first()->using::make(...$arguments)->to($to)->from($from)->on($model),
             function (self $trigger) use ($model, $field): array {
                 $trigger->field = $field;
                 $trigger->replaying = true;
@@ -309,6 +312,30 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         }
 
         $this->model->forceFill([$this->field => $this->to])->save();
+    }
+
+    /**
+     * @param  class-string<self>  $trigger
+     * @param  array<int|string, mixed>  $arguments
+     */
+    private static function ensureDeclared(string $trigger, array $arguments): void
+    {
+        $declared = collect(method_exists($trigger, '__construct') ? (new ReflectionMethod($trigger, '__construct'))->getParameters() : [])
+            ->map(fn (ReflectionParameter $parameter): string => strtolower($parameter->name));
+
+        foreach (array_keys($arguments) as $name) {
+            throw_if(
+                is_int($name),
+                InvalidArgumentException::class,
+                'Replay arguments for ['.class_basename($trigger).'] must be named.'
+            );
+
+            throw_unless(
+                $declared->contains(strtolower($name)),
+                InvalidArgumentException::class,
+                "[{$name}] is not an argument of [".class_basename($trigger).'].'
+            );
+        }
     }
 
     /**

@@ -33,6 +33,7 @@ use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
 use Tests\Fixtures\Support\Users\Status\Events\Registered;
 use Tests\Fixtures\Support\Users\Status\Events\Registering;
+use Tests\Fixtures\Support\Users\Status\Events\Suspending;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
@@ -972,6 +973,69 @@ class TriggerTest extends TestCase
 
         $this->assertSame(['suspended_at'], array_keys($changes));
         $this->assertEquals(now()->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
+    public function it_replays_with_the_arguments_of_the_trigger(): void
+    {
+        $this->freezeTime();
+
+        $at = now()->subYear();
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Suspended]);
+
+        $changes = Trigger::replay($user, 'status', ['at' => $at]);
+
+        $this->assertSame(['suspended_at'], array_keys($changes));
+        $this->assertEquals($at->toDateTimeString(), $user->suspended_at);
+    }
+
+    #[Test]
+    public function it_replays_with_a_required_argument_of_the_trigger(): void
+    {
+        $user = (new PlanUser)->setRawAttributes(['plan' => Plan::Free->value], true)->forceFill(['plan' => Plan::Paid]);
+
+        $changes = Trigger::replay($user, 'plan', ['reason' => 'Needs more seats']);
+
+        $this->assertSame(['activated_at'], array_keys($changes));
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_with_an_argument_the_trigger_does_not_declare(): void
+    {
+        Event::listen(fn (Suspending $event) => Context::add(Suspending::class, true));
+
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Suspended]);
+
+        try {
+            Trigger::replay($user, 'status', ['until' => now()]);
+
+            $this->fail('The replay accepted an argument the trigger does not declare.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('[until] is not an argument of [Suspend].', $exception->getMessage());
+            $this->assertNull(Context::get(Suspending::class));
+            $this->assertNull($user->suspended_at);
+        }
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_with_an_argument_for_a_trigger_without_a_constructor(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Activated]);
+
+        $this->expectExceptionObject(new InvalidArgumentException('[at] is not an argument of [Activate].'));
+
+        Trigger::replay($user, 'status', ['at' => now()]);
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_with_a_positional_argument(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Suspended]);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Replay arguments for [Suspend] must be named.'));
+
+        Trigger::replay($user, 'status', [now()]);
     }
 
     #[Test]
