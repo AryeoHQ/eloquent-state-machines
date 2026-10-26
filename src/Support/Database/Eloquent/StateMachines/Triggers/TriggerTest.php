@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 use Orchestra\Testbench\Attributes\WithConfig;
 use PHPUnit\Framework\Attributes\Test;
@@ -893,6 +894,51 @@ class TriggerTest extends TestCase
         $changes = Trigger::replay($user->forceFill(['status' => Status::Activated]), 'status');
 
         $this->assertSame(['activated_at'], array_keys($changes));
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_column_that_is_not_a_state_machine(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['name' => 'Ada']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('[name] on [User] is not a state machine.');
+
+        Trigger::replay($user, 'name');
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_column_that_holds_no_state(): void
+    {
+        $user = User::factory()->registered()->create();
+        $user->setRawAttributes([...$user->getAttributes(), 'status' => null]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('[status] on [User] holds no state to replay.');
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_raw_original_that_holds_no_state(): void
+    {
+        $user = (new User)->setRawAttributes([], true)->forceFill(['status' => Status::Activated]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('[status] on [User] holds no source state to replay.');
+
+        Trigger::replay($user, 'status');
+    }
+
+    #[Test]
+    public function it_refuses_to_replay_a_pair_with_more_than_one_transition(): void
+    {
+        $user = User::factory()->registered()->create()->forceFill(['status' => Status::Registered]);
+
+        $this->expectException(Exceptions\Duplicate::class);
+        $this->expectExceptionMessage('Multiple [Registered] triggers defined on [Registered]');
+
+        Trigger::replay($user, 'status');
     }
 
     #[Test]

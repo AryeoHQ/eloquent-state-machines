@@ -322,7 +322,7 @@ The caller must hold the row lock for the whole replay. Load the model with `loc
 The replay throws in these cases:
 
 - `InvalidArgumentException` when the column does not cast to a state machine, or when it holds no case of that state machine.
-- `Invalid` when the raw original holds no case of the state machine, for example on a model that was never saved.
+- `InvalidArgumentException` when the raw original holds no case of the state machine.
 - `Invalid` when no `#[Transition]` on the source case leads to the target state.
 - `Duplicate` when more than one `#[Transition]` on the source case leads to the target state.
 - `Invalid` when `allowed()` returns `false`. The replay then throws before the before event and `handle()`.

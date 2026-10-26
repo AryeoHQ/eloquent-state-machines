@@ -109,7 +109,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
         throw_if(is_null($to), InvalidArgumentException::class, "[{$field}] on [".class_basename($model::class).'] holds no state to replay.');
 
-        throw_if(is_null($from), Invalid::class, $model, $to);
+        throw_if(is_null($from), InvalidArgumentException::class, "[{$field}] on [".class_basename($model::class).'] holds no source state to replay.');
 
         $transitions = $from->transitions()->filter(fn ($transition): bool => $transition->to === $to);
 
