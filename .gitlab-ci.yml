@@ -33,10 +33,18 @@ tests:
   extends: .php-tests
   parallel:
     matrix:
-      - COMPOSER_REQUIRE: "laravel/framework:12.* orchestra/testbench:10.*"
-        DB_CONNECTION: [sqlite, pgsql]
-      - COMPOSER_REQUIRE: "laravel/framework:13.* orchestra/testbench:11.*"
-        DB_CONNECTION: [sqlite, pgsql]
+      - COMPOSER_REQUIRE:
+          - "laravel/framework:12.* orchestra/testbench:10.*"
+          - "laravel/framework:13.* orchestra/testbench:11.*"
+        DB_CONNECTION: sqlite
+        TEST_COMMAND: ./vendor/bin/testbench package:test --parallel
+      # Every parallel process would share the one PostgreSQL database, and TestCase drops
+      # and recreates its tables, so run these serially (as the GitHub workflow does).
+      - COMPOSER_REQUIRE:
+          - "laravel/framework:12.* orchestra/testbench:10.*"
+          - "laravel/framework:13.* orchestra/testbench:11.*"
+        DB_CONNECTION: pgsql
+        TEST_COMMAND: ./vendor/bin/testbench package:test
   services:
     - name: postgres:16
       alias: postgres
