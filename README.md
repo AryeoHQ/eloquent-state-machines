@@ -296,22 +296,38 @@ The guard comes back when the callback returns or throws.
 Another package may need to apply a transition whose new state it already set on the model. `Trigger::replay()` takes a model whose state column holds the target state and whose raw original holds the source state:
 
 ```php
+use Illuminate\Support\Facades\DB;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
 
-$user->forceFill(['status' => Status::Activated]);
+DB::transaction(function () use ($id) {
+    $user = User::query()->lockForUpdate()->findOrFail($id);
 
-$changes = Trigger::replay($user, 'status'); // ['activated_at' => '2026-10-24 12:00:00']
+    $user->forceFill(['status' => Status::Activated]);
+
+    $changes = Trigger::replay($user, 'status'); // ['activated_at' => '2026-10-24 12:00:00']
+});
 ```
 
 The replay resolves the trigger from the source case's `#[Transition(to:, using:)]` and runs it through the same pipeline as `now()`:
 
-- The transition check compares the model's raw original against the source state. It skips the persisted-state check, because the caller holds the row.
+- The transition check compares the model's raw original against the source state. It skips the persisted-state check, which `now()` runs with `lockForUpdate()`, and takes no lock of its own.
 - `allowed()` runs, the before event fires, and `handle()` runs.
-- Nothing is saved. The replay returns the attributes `handle()` changed, without the state column, and the caller saves them. Attributes the caller changed before the replay are not in the return.
+- The replay makes no transition write: it does not store the state column, and it does not save the model. It returns the attributes `handle()` changed, without the state column, and the caller saves them. Attributes the caller changed before the replay are not in the return.
+- `handle()` may still save the model or other models. A save of the model in `handle()` writes the target state the caller set.
 - The after event fires after the outermost commit.
 - The replay opens no transaction, so run it inside the caller's own transaction.
 
-A pair with no `#[Transition]` throws `Invalid`, and so does a blocked transition. While a replay runs, the guard treats it as a running trigger for the given column.
+The caller must hold the row lock for the whole replay. Load the model with `lockForUpdate()`, as the example does, or update the row earlier in the same transaction. Without the lock, two concurrent replays of one transition both pass the transition check, and both run `handle()`.
+
+The replay throws in these cases:
+
+- `InvalidArgumentException` when the column does not cast to a state machine, or when it holds no case of that state machine.
+- `Invalid` when the raw original holds no case of the state machine, for example on a model that was never saved.
+- `Invalid` when no `#[Transition]` on the source case leads to the target state.
+- `Duplicate` when more than one `#[Transition]` on the source case leads to the target state.
+- `Invalid` when `allowed()` returns `false`. The replay then throws before the before event and `handle()`.
+
+While a replay runs, the guard treats it as a running trigger for the given column.
 
 A replay differs from `now()` in these ways:
 
