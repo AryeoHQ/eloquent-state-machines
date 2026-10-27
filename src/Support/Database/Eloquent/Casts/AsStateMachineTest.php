@@ -6,6 +6,7 @@ namespace Support\Database\Eloquent\Casts;
 
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Contracts;
+use Tests\Fixtures\Support\Users\LegacyStatusUser;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\User;
 use Tests\TestCase;
@@ -47,6 +48,16 @@ class AsStateMachineTest extends TestCase
             Contracts\Proxy::class,
             $user->forceFill(['status' => Status::Registered])->status
         );
+    }
+
+    #[Test]
+    public function it_carries_the_column_it_was_read_from(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered]);
+
+        $this->assertSame('status', $user->status->field);
+        $this->assertSame('legacy_status', $user->legacy_status->field);
     }
 
     #[Test]
