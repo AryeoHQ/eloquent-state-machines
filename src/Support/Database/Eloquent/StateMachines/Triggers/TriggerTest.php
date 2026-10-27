@@ -1063,6 +1063,31 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_to_run_without_transition_when_not_allowed(): void
+    {
+        $user = User::factory()->registered()->trashed()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        try {
+            $user->status->activate()->withoutTransition()->now();
+        } finally {
+            $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
+
+            $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+            $this->assertNull($user->refresh()->activated_at);
+        }
+    }
+
+    #[Test]
     public function it_keeps_the_target_state_and_calls_failed_when_handle_throws_and_run_without_transition(): void
     {
         $user = User::factory()->registered()->create();
