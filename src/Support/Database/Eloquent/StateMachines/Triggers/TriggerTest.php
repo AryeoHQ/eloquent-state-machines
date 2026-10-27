@@ -891,6 +891,38 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_a_trigger_queued_without_its_column(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered, 'status' => Status::Registered])->save();
+
+        $serialized = serialize($user->status->activate());
+        $field = serialize('field').serialize('status');
+
+        $this->assertStringContainsString($field, $serialized);
+
+        $payload = preg_replace_callback(
+            '/^(O:\d+:"[^"]+":)(\d+)/',
+            fn (array $matches): string => $matches[1].((int) $matches[2] - 1),
+            str_replace($field, '', $serialized)
+        );
+
+        try {
+            unserialize($payload)->now();
+
+            $this->fail('A trigger without its column ran.');
+        } catch (\Error $error) {
+            $this->assertSame(\Error::class, $error::class);
+            $this->assertStringContainsString('Trigger::$field must not be accessed before initialization', $error->getMessage());
+        }
+
+        $user->refresh();
+
+        $this->assertSame(Status::Registered, $user->status->enum);
+        $this->assertSame(Status::Registered, $user->legacy_status->enum);
+    }
+
+    #[Test]
     public function it_does_not_write_the_state_column_when_run_without_transition(): void
     {
         $user = User::factory()->registered()->create();
