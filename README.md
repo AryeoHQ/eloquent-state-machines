@@ -196,11 +196,15 @@ $user->status->activate()->withoutTransition()->dispatch();
 The model must hold the source state in its attribute and in its raw original, as it was loaded before the caller's write. The persisted row must hold the target state. Call the trigger through the proxy of the column that changed, as [Configure Model](#configure-model) describes.
 
 Everything else runs as it does for an ordinary transition:
-- the source-state check, and the locked re-read of the persisted row
+- the source-state check
 - `allowed()`
 - the before and after events
 - `handle()`, with the constructor arguments passed to the trigger method, such as `$user->status->suspend($at)->withoutTransition()`
 - the lifecycle transaction, the refresh after a rollback, and `failed()`
+
+The locked re-read of the persisted row still runs, but it confirms that the row holds the target state. On an ordinary run the re-read stops a second run, because the first run moves the row off the source state. Here the row holds the target state before and after the run. A retried or duplicated run therefore passes the re-read again, and it repeats `handle()` and both events.
+
+On a failure, the state stays where the caller wrote it, and after a transactional rollback `failed()` sees the target state.
 
 At the trigger's declared phase, the state attribute takes the target state and is marked as unchanged. `handle()` and both event listeners therefore see what they see on an ordinary run. The `save()` after `handle()` writes only what `handle()` changed. `now()` returns the model, which holds the target state with no unsaved state change.
 

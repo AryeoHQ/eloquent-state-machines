@@ -35,6 +35,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
@@ -1045,6 +1046,42 @@ class TriggerTest extends TestCase
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
         User::factory()->registered()->make()->status->activate()->withoutTransition()->now();
+    }
+
+    #[Test]
+    public function it_refuses_to_run_a_stationary_trigger_without_transition_on_an_unsaved_model(): void
+    {
+        $user = User::factory()->registered()->make();
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        try {
+            $user->status->ping()->withoutTransition()->now();
+        } finally {
+            $this->assertFalse($user->exists);
+            $this->assertDatabaseCount($user->getTable(), 0);
+        }
+    }
+
+    #[Test]
+    public function it_keeps_the_target_state_and_calls_failed_when_handle_throws_and_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->expectException(Unprocessable::class);
+
+        try {
+            ThrowsException::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
+        } finally {
+            $this->assertSame(Status::Activated, $user->status->enum);
+            $this->assertNotNull($user->suspended_at);
+            $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+            $this->assertNotNull($user->suspended_at);
+        }
     }
 
     #[Test]

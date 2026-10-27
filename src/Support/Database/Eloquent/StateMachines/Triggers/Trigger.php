@@ -189,6 +189,14 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     private function preventInvalidTransition(): void
     {
+        throw_if(
+            $this->withoutTransition && ! $this->model->exists,
+            Invalid::class,
+            $this->model,
+            $this->to,
+            $this->field
+        );
+
         throw_unless(
             $this->current === $this->from,
             Invalid::class,
