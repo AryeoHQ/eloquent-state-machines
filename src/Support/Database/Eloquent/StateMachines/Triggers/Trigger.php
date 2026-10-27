@@ -192,7 +192,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             $this->persisted() === $this->from,
             Invalid::class,
             $this->model,
-            $this->to
+            $this->to,
+            $this->field
         );
     }
 

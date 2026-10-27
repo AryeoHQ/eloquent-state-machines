@@ -875,4 +875,35 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Activated, $user->status->enum);
         $this->assertSame(Status::Registered, $user->legacy_status->enum);
     }
+
+    #[Test]
+    public function it_checks_the_persisted_state_on_the_column_its_proxy_was_read_from(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered])->save();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['legacy_status' => Status::Activated->value]);
+
+        $user->status->activate()->now();
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_names_the_state_of_the_column_its_proxy_was_read_from_when_the_persisted_state_moved(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Suspended])->save();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+        $this->expectExceptionMessage('Invalid transition from [Registered] to [Activated] on [LegacyStatusUser].');
+
+        $user->status->activate()->now();
+    }
 }
