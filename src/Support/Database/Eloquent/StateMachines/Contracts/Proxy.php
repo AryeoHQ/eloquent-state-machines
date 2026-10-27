@@ -11,7 +11,7 @@ interface Proxy extends StateMachine
 {
     public Model $model { get; }
 
-    public string $field { get; }
+    public null|string $field { get; }
 
-    public static function make(Model $model, string $field, StateMachineable&BackedEnum $enum): static;
+    public static function make(Model $model, StateMachineable&BackedEnum $enum, null|string $field = null): static;
 }

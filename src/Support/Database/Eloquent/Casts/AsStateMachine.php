@@ -33,7 +33,7 @@ class AsStateMachine implements CastsAttributes
      */
     public function get(Model $model, string $key, mixed $value, array $attributes): StateMachines\StateMachine
     {
-        return StateMachines\StateMachine::make($model, $key, $this->resolveEnum($value));
+        return StateMachines\StateMachine::make($model, $this->resolveEnum($value), $key);
     }
 
     public function set(Model $model, string $key, mixed $value, array $attributes): string|int

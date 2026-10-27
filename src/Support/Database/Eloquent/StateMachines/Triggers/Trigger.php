@@ -50,7 +50,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         set => $this->{$this->target()} = $value;
     }
 
-    private string $field;
+    private null|string $field = null {
+        get => $this->field ?? collect($this->model->getCasts())->filter(
+            fn ($cast): bool => $cast === $this->to::class
+        )->keys()->first();
+    }
 
     private null|(StateMachineable&BackedEnum) $current {
         get => with(
@@ -105,7 +109,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         return $this;
     }
 
-    final public function on(Model $model, string $field): self
+    final public function on(Model $model, null|string $field = null): self
     {
         $this->model = $model;
         $this->field = $field;
@@ -181,14 +185,14 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             $this->current === $this->from,
             Invalid::class,
             $this->model,
-            $this->field,
-            $this->to
+            $this->to,
+            $this->field
         );
     }
 
     private function preventBlockedTransition(): void
     {
-        throw_if($this->blocked(), Invalid::class, $this->model, $this->field, $this->to);
+        throw_if($this->blocked(), Invalid::class, $this->model, $this->to, $this->field);
     }
 
     private function dispatchEvent(string $event): void
