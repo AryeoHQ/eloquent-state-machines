@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,7 @@ use Tests\Fixtures\Support\Users\LegacyStatusUser;
 use Tests\Fixtures\Support\Users\SecondaryUser;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\Deactivating;
 use Tests\Fixtures\Support\Users\Status\Events\Registered;
 use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
@@ -905,5 +908,228 @@ class TriggerTest extends TestCase
         $this->expectExceptionMessage('Invalid transition from [Registered] to [Activated] on [LegacyStatusUser].');
 
         $user->status->activate()->now();
+    }
+
+
+    #[Test]
+    public function it_does_not_write_the_state_column_when_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        $user->status->activate()->withoutTransition()->now();
+
+        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
+
+        $this->assertNotEmpty($writes);
+        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_returns_the_model_in_the_target_state_when_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->assertSame($user, $user->status->activate()->withoutTransition()->now());
+        $this->assertSame(Status::Activated, $user->status->enum);
+        $this->assertFalse($user->isDirty('status'));
+    }
+
+    #[Test]
+    public function it_fires_both_events_when_run_without_transition(): void
+    {
+        Event::listen(fn (Activating $event) => Context::push(Activating::class, $event->model->status->enum));
+
+        Event::listen(fn (Activated $event) => Context::push(Activated::class, [
+            $event->model->getConnection()->transactionLevel(),
+            $event->model->status->enum,
+        ]));
+
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $user->status->activate()->withoutTransition()->now();
+
+        $this->assertSame([Status::Registered], Context::get(Activating::class));
+        $this->assertSame([[0, Status::Activated]], Context::get(Activated::class));
+    }
+
+    #[Test]
+    public function it_runs_handle_in_the_source_state_when_run_without_transition(): void
+    {
+        $user = User::factory()->activated()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Deactivated->value]);
+
+        $this->app->afterResolving(Carbon::class, fn () => Context::push(Deactivate::class, $user->status->enum));
+
+        $user->status->deactivate()->withoutTransition()->now();
+
+        $this->assertSame([Status::Activated], Context::get(Deactivate::class));
+        $this->assertNotNull($user->refresh()->deactivated_at);
+    }
+
+    #[Test]
+    public function it_runs_handle_in_the_target_state_when_phase_is_before_and_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
+
+        $this->assertSame(Status::Activated->value, Context::get(ActivateBeforeTransition::class));
+        $this->assertNotNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_refuses_to_run_without_transition_when_the_persisted_state_is_not_the_target(): void
+    {
+        Event::fake([Deactivating::class]);
+
+        $user = User::factory()->activated()->create();
+
+        $this->app->afterResolving(Carbon::class, fn () => Context::push(Deactivate::class, $user->status->enum));
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        try {
+            $user->status->deactivate()->withoutTransition()->now();
+        } finally {
+            $this->assertNull(Context::get(Deactivate::class));
+            Event::assertNotDispatched(Deactivating::class);
+        }
+    }
+
+    #[Test]
+    public function it_refuses_to_run_without_transition_when_the_model_left_the_starting_state(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $trigger = $user->status->activate()->withoutTransition();
+
+        $user->status->suspend()->now();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        $trigger->now();
+    }
+
+    #[Test]
+    public function it_refuses_to_run_without_transition_on_an_unsaved_model(): void
+    {
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        User::factory()->registered()->make()->status->activate()->withoutTransition()->now();
+    }
+
+    #[Test]
+    public function it_rethrows_a_refusal_inside_the_callers_transaction_when_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->trashed()->create();
+
+        rescue(fn () => DB::transaction(function () use ($user): void {
+            DB::table($user->getTable())
+                ->where($user->getKeyName(), $user->getKey())
+                ->update(['status' => Status::Activated->value]);
+
+            try {
+                $user->status->activate()->withoutTransition()->now();
+            } catch (Transitions\Exceptions\Invalid $exception) {
+                Context::add(Transitions\Exceptions\Invalid::class, DB::transactionLevel());
+
+                throw $exception;
+            }
+        }), report: false);
+
+        $this->assertSame(1, Context::get(Transitions\Exceptions\Invalid::class));
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_does_not_write_the_state_column_when_run_without_transition_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        $user->status->activate()->withoutTransition()->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
+
+        $this->assertNotEmpty($writes);
+        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_runs_without_transition_on_the_column_its_proxy_was_read_from(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered])->save();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $user->status->activate()->withoutTransition()->now();
+
+        $this->assertSame(Status::Activated, $user->status->enum);
+        $this->assertSame(Status::Registered, $user->legacy_status->enum);
+        $this->assertFalse($user->isDirty(['status', 'legacy_status']));
+        $this->assertSame(Status::Registered, $user->refresh()->legacy_status->enum);
+    }
+
+    #[Test]
+    public function it_runs_without_transition_on_the_second_column_cast_to_the_enum_through_its_own_proxy(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered])->save();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['legacy_status' => Status::Activated->value]);
+
+        $user->legacy_status->activate()->withoutTransition()->now();
+
+        $this->assertSame(Status::Activated, $user->legacy_status->enum);
+        $this->assertSame(Status::Registered, $user->status->enum);
+        $this->assertFalse($user->isDirty(['status', 'legacy_status']));
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
     }
 }

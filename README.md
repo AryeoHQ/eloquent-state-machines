@@ -183,6 +183,39 @@ When a trigger targets the current state:
 
 This lets you define named, guarded entry points for work within a state without introducing intermediate states into your graph.
 
+#### Running a Trigger Without Its Transition
+
+Some callers store the new state themselves before any trigger runs, for example through a database view. `withoutTransition()` runs the transition's trigger for that stored state and does not write the state column again.
+
+```php
+$user->status->activate()->withoutTransition()->now();
+
+$user->status->activate()->withoutTransition()->dispatch();
+```
+
+The model must hold the source state in its attribute and in its raw original, as it was loaded before the caller's write. The persisted row must hold the target state. Call the trigger through the proxy of the column that changed, as [Configure Model](#configure-model) describes.
+
+Everything else runs as it does for an ordinary transition:
+- the source-state check, and the locked re-read of the persisted row
+- `allowed()`
+- the before and after events
+- `handle()`, with the constructor arguments passed to the trigger method, such as `$user->status->suspend($at)->withoutTransition()`
+- the lifecycle transaction, the refresh after a rollback, and `failed()`
+
+At the trigger's declared phase, the state attribute takes the target state and is marked as unchanged. `handle()` and both event listeners therefore see what they see on an ordinary run. The `save()` after `handle()` writes only what `handle()` changed. `now()` returns the model, which holds the target state with no unsaved state change.
+
+Inside a caller's transaction on the model's connection, the lifecycle transaction becomes a savepoint. A refusal, or an exception from `handle()`, is thrown inside the caller's transaction, so the caller can still roll back its own write. What `handle()` changed commits with the caller's transaction. The after event fires when the caller's transaction commits.
+
+The trigger refuses with `Attributes\Transitions\Exceptions\Invalid` when:
+- the raw original does not hold the trigger's source state
+- the persisted row does not hold the trigger's target state, which includes a trigger that leads to a different state
+- the model is unsaved, because it has no persisted row
+- `allowed()` returns `false`
+
+When several transitions lead from one state to another, choose the trigger by its method name. The proxy refuses a name that the current state does not declare with `Triggers\Exceptions\Invalid`. `Status::Registered->transitions()` lists a state's transitions, each with its `to` state and its `using` trigger, and needs no database.
+
+A package that treats this one as optional checks for support with `method_exists(Trigger::class, 'withoutTransition')`.
+
 #### Failures
 When a particular `Trigger` fails the state machine will not be moved to the target state. However, you may want to alert your users or revert any actions that were partially completed by the trigger. To accomplish that, you may define a `failed` method on your `Trigger`. The `Throwable` instance that caused `handle()` to fail will be passed to `failed()`.
 

@@ -69,6 +69,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         get => $this->changesState ??= $this->current !== $this->to;
     }
 
+    private bool $withoutTransition = false;
+
     final public function prepare(): void
     {
         $this->through([...$this->middleware, ThroughLifecycle::class]);
@@ -112,6 +114,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     {
         $this->model = $model;
         $this->field = $field;
+
+        return $this;
+    }
+
+    final public function withoutTransition(): static
+    {
+        $this->withoutTransition = true;
 
         return $this;
     }
@@ -189,7 +198,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         );
 
         throw_unless(
-            $this->persisted() === $this->from,
+            $this->persisted() === ($this->withoutTransition ? $this->to : $this->from),
             Invalid::class,
             $this->model,
             $this->to,
@@ -250,6 +259,12 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     private function transition(Phase $phase): void
     {
         if ($this->transitionDuring->phase !== $phase) {
+            return;
+        }
+
+        if ($this->withoutTransition) {
+            $this->model->forceFill([$this->field => $this->to])->syncOriginalAttribute($this->field);
+
             return;
         }
 
