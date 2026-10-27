@@ -911,7 +911,6 @@ class TriggerTest extends TestCase
         $user->status->activate()->now();
     }
 
-
     #[Test]
     public function it_does_not_write_the_state_column_when_run_without_transition(): void
     {
@@ -1132,6 +1131,55 @@ class TriggerTest extends TestCase
         $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
         $this->assertNotNull($user->refresh()->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_keeps_running_without_transition_after_a_serialized_model_round_trip(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $trigger = WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition();
+
+        $restored = unserialize(serialize($trigger));
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        $restored->now();
+
+        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
+
+        $this->assertNotEmpty($writes);
+        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_refuses_to_run_without_transition_when_a_serialized_model_reloads_in_the_target_state(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $trigger = WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition();
+
+        $restored = unserialize(serialize($trigger));
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        try {
+            $restored->now();
+        } finally {
+            $this->assertNull($user->refresh()->activated_at);
+        }
     }
 
     #[Test]

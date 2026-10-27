@@ -69,7 +69,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         get => $this->changesState ??= $this->current !== $this->to;
     }
 
-    private bool $withoutTransition = false;
+    public protected(set) bool $withoutTransition = false;
 
     final public function prepare(): void
     {

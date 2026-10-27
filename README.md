@@ -195,6 +195,8 @@ $user->status->activate()->withoutTransition()->dispatch();
 
 The model must hold the source state in its attribute and in its raw original, as it was loaded before the caller's write. The persisted row must hold the target state. Call the trigger through the proxy of the column that changed, as [Configure Model](#configure-model) describes.
 
+A trigger whose model is reloaded from the database after the caller's write therefore refuses. A `SerializesModels` trigger reloads its model when the job runs, so the model already holds the target state and fails the source-state check.
+
 Everything else runs as it does for an ordinary transition:
 - the source-state check
 - `allowed()`
