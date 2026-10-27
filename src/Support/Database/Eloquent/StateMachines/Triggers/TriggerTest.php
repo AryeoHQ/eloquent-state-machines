@@ -235,7 +235,7 @@ class TriggerTest extends TestCase
 
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
-        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
     }
 
     #[Test]
@@ -251,7 +251,7 @@ class TriggerTest extends TestCase
         $user = new SecondaryUser;
         $user->save();
 
-        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
 
         $this->assertSame([[1, 0]], Context::get(Activating::class));
         $this->assertSame([0], Context::get(Activated::class));
@@ -265,7 +265,7 @@ class TriggerTest extends TestCase
 
         $user->forceFill([$user->getKeyName() => $key = $user->getKey() + 1000]);
 
-        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user)->now();
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
 
         $this->assertSame(Status::Activated, User::query()->findOrFail($key)->status->enum);
     }
@@ -282,12 +282,12 @@ class TriggerTest extends TestCase
         $holder->beginTransaction();
 
         try {
-            Activate::make()->to(Status::Activated)->from(Status::Registered)->on(SecondaryUser::query()->findOrFail($stale->getKey()))->now();
+            Activate::make()->to(Status::Activated)->from(Status::Registered)->on(SecondaryUser::query()->findOrFail($stale->getKey()), 'status')->now();
 
             DB::statement("SET lock_timeout = '200ms'");
 
             try {
-                Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale)->now();
+                Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale, 'status')->now();
 
                 $this->fail('The transition did not wait for the row lock.');
             } catch (QueryException $exception) {
@@ -301,7 +301,7 @@ class TriggerTest extends TestCase
 
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
-        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale)->now();
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale, 'status')->now();
     }
 
     #[Test]
