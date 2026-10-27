@@ -25,6 +25,7 @@ abstract class TestCase extends Testbench\TestCase
         Schema::create('users', function (Blueprint $table): void {
             $table->id();
             $table->string('status')->nullable();
+            $table->string('legacy_status')->nullable();
             $table->timestampTz('activated_at')->nullable();
             $table->timestampTz('deactivated_at')->nullable();
             $table->timestampTz('suspended_at')->nullable();

@@ -20,14 +20,14 @@ class StateMachineTest extends TestCase
     {
         $this->assertInstanceOf(
             StateMachine::class,
-            StateMachine::make(User::factory()->make(), Status::Registered)
+            StateMachine::make(User::factory()->make(), 'status', Status::Registered)
         );
     }
 
     #[Test]
     public function it_proxies_method_calls_to_enum(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Registered);
 
         collect($stateMachine->cases())->each(
             fn (Status $status) => $this->assertInstanceOf(Status::class, $status)
@@ -37,7 +37,7 @@ class StateMachineTest extends TestCase
     #[Test]
     public function it_provides_access_to_the_enum(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Registered);
 
         $this->assertInstanceOf(Status::class, $stateMachine->enum);
     }
@@ -45,7 +45,7 @@ class StateMachineTest extends TestCase
     #[Test]
     public function it_resolves_trigger_from_enum(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Registered);
 
         $this->assertInstanceOf(Trigger::class, $stateMachine->activate());
     }
@@ -53,7 +53,7 @@ class StateMachineTest extends TestCase
     #[Test]
     public function it_throws_exception_for_invalid_case_transition(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Activated);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Activated);
 
         $this->expectException(Invalid::class);
 
@@ -65,7 +65,7 @@ class StateMachineTest extends TestCase
     {
         $this->expectException(Duplicate::class);
 
-        $stateMachine = StateMachine::make(User::factory()->make(), DuplicateTransitionTrigger::Active);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', DuplicateTransitionTrigger::Active);
 
         $stateMachine->activate();
     }
@@ -73,7 +73,7 @@ class StateMachineTest extends TestCase
     #[Test]
     public function it_implements_stringable(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Registered);
 
         $this->assertSame(Status::Registered->value, (string) $stateMachine);
     }
@@ -81,7 +81,7 @@ class StateMachineTest extends TestCase
     #[Test]
     public function it_can_compare_to_an_enum_case(): void
     {
-        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered);
+        $stateMachine = StateMachine::make(User::factory()->make(), 'status', Status::Registered);
 
         $this->assertTrue($stateMachine->is(Status::Registered));
         $this->assertFalse($stateMachine->is(Status::Activated));
@@ -92,9 +92,9 @@ class StateMachineTest extends TestCase
     {
         $model = User::factory()->make();
 
-        $this->assertTrue(StateMachine::make($model, Status::Deactivated)->isTerminal());
-        $this->assertTrue(StateMachine::make($model, Status::Suspended)->isTerminal());
-        $this->assertFalse(StateMachine::make($model, Status::Registered)->isTerminal());
-        $this->assertFalse(StateMachine::make($model, Status::Activated)->isTerminal());
+        $this->assertTrue(StateMachine::make($model, 'status', Status::Deactivated)->isTerminal());
+        $this->assertTrue(StateMachine::make($model, 'status', Status::Suspended)->isTerminal());
+        $this->assertFalse(StateMachine::make($model, 'status', Status::Registered)->isTerminal());
+        $this->assertFalse(StateMachine::make($model, 'status', Status::Activated)->isTerminal());
     }
 }

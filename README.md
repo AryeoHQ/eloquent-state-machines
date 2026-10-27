@@ -333,6 +333,8 @@ class User extends Model
 }
 ```
 
+A model may cast more than one column to the same enum. A trigger checks, re-reads and writes only the column its proxy was read from: `$user->status->activate()` moves `status`, and `$user->legacy_status->activate()` moves `legacy_status`.
+
 ### Usage
 Once your model is configured with a state machine enum, you can access the state machine through the casted property (e.g., `$user->status`). This gives you access to trigger methods that correspond to your defined transitions.
 

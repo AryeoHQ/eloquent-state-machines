@@ -20,11 +20,14 @@ class StateMachine implements Contracts\Proxy, Stringable
 {
     final public readonly Model $model;
 
+    final public readonly string $field;
+
     final public readonly StateMachineable&BackedEnum $enum;
 
-    final public function __construct(Model $model, StateMachineable&BackedEnum $enum)
+    final public function __construct(Model $model, string $field, StateMachineable&BackedEnum $enum)
     {
         $this->model = $model;
+        $this->field = $field;
         $this->enum = $enum;
     }
 
@@ -34,9 +37,9 @@ class StateMachine implements Contracts\Proxy, Stringable
      * @param  T  $enum
      * @return static<T>
      */
-    final public static function make(Model $model, StateMachineable&BackedEnum $enum): static
+    final public static function make(Model $model, string $field, StateMachineable&BackedEnum $enum): static
     {
-        return resolve(static::class, ['model' => $model, 'enum' => $enum]);
+        return resolve(static::class, ['model' => $model, 'field' => $field, 'enum' => $enum]);
     }
 
     final public function is(StateMachineable&BackedEnum $enum): bool

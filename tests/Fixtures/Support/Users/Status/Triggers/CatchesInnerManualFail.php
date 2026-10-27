@@ -32,7 +32,7 @@ final class CatchesInnerManualFail extends Trigger
         ]);
 
         try {
-            WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($this->inner)->now();
+            WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($this->inner, 'status')->now();
         } catch (ManuallyFailedException) {
             Context::push(Trigger::class, self::CAUGHT);
         }
