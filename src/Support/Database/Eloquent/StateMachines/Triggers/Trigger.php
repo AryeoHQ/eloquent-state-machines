@@ -50,7 +50,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         set => $this->{$this->target()} = $value;
     }
 
-    private null|string $field = null {
+    public protected(set) null|string $field = null {
         get => $this->field ?? collect($this->model->getCasts())->filter(
             fn ($cast): bool => $cast === $this->to::class
         )->keys()->first();

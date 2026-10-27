@@ -761,7 +761,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->create();
 
         $serialized = serialize($user->status->activate());
-        $field = serialize("\0".Trigger::class."\0field").serialize('status');
+        $field = serialize('field').serialize('status');
 
         $this->assertStringContainsString($field, $serialized);
 
@@ -774,5 +774,21 @@ class TriggerTest extends TestCase
         unserialize($payload)->now();
 
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_writes_its_column_after_a_serialized_model_round_trip(): void
+    {
+        $user = new LegacyStatusUser;
+        $user->forceFill(['legacy_status' => Status::Registered])->save();
+
+        $trigger = WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status');
+
+        unserialize(serialize($trigger))->now();
+
+        $user->refresh();
+
+        $this->assertSame(Status::Activated, $user->status->enum);
+        $this->assertSame(Status::Registered, $user->legacy_status->enum);
     }
 }
