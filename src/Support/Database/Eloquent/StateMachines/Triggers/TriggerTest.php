@@ -844,27 +844,6 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
-    public function it_runs_a_trigger_queued_without_its_column_on_the_first_column_cast_to_the_enum(): void
-    {
-        $user = User::factory()->registered()->create();
-
-        $serialized = serialize($user->status->activate());
-        $field = serialize('field').serialize('status');
-
-        $this->assertStringContainsString($field, $serialized);
-
-        $payload = preg_replace_callback(
-            '/^(O:\d+:"[^"]+":)(\d+)/',
-            fn (array $matches): string => $matches[1].((int) $matches[2] - 1),
-            str_replace($field, '', $serialized)
-        );
-
-        unserialize($payload)->now();
-
-        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
-    }
-
-    #[Test]
     public function it_writes_its_column_after_a_serialized_model_round_trip(): void
     {
         $user = new LegacyStatusUser;

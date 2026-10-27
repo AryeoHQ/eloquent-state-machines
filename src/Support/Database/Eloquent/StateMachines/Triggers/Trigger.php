@@ -49,11 +49,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         set => $this->{$this->target()} = $value;
     }
 
-    public protected(set) null|string $field = null {
-        get => $this->field ?? collect($this->model->getCasts())->filter(
-            fn ($cast): bool => $cast === $this->to::class
-        )->keys()->first();
-    }
+    public protected(set) string $field;
 
     private null|(StateMachineable&BackedEnum) $current {
         get => with(
@@ -110,7 +106,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         return $this;
     }
 
-    final public function on(Model $model, null|string $field = null): self
+    final public function on(Model $model, string $field): self
     {
         $this->model = $model;
         $this->field = $field;
