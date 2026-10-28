@@ -28,13 +28,14 @@ class TriggerCannotPerformIoInsideTransactionTest extends RuleTestCase
     public function it_fails_when_handle_performs_io(): void
     {
         $this->analyse([$this->getFixturePath('EloquentStateMachines/TriggerPerformsIo.php')], [
-            [$this->message('Illuminate\Support\Facades\Http'), 32],
-            [$this->message('Illuminate\Support\Facades\Mail'), 33],
-            [$this->message('Illuminate\Http\Client\Factory'), 34],
-            [$this->message('Illuminate\Http\Client\PendingRequest'), 35],
-            [$this->message('GuzzleHttp\ClientInterface'), 36],
-            [$this->message('Psr\Http\Client\ClientInterface'), 37],
-            [$this->message('Illuminate\Contracts\Mail\Mailer'), 38],
+            [$this->message('Illuminate\Support\Facades\Http'), 33],
+            [$this->message('Illuminate\Support\Facades\Mail'), 34],
+            [$this->message('Illuminate\Http\Client\Factory'), 35],
+            [$this->message('Illuminate\Http\Client\PendingRequest'), 36],
+            [$this->message('GuzzleHttp\ClientInterface'), 37],
+            [$this->message('Psr\Http\Client\ClientInterface'), 38],
+            [$this->message('Illuminate\Contracts\Mail\Mailer'), 39],
+            [$this->message('Psr\Http\Client\ClientInterface'), 40],
         ]);
     }
 
@@ -44,6 +45,34 @@ class TriggerCannotPerformIoInsideTransactionTest extends RuleTestCase
         $this->analyse([$this->getFixturePath('EloquentStateMachines/TriggerPerformsIoInHelper.php')], [
             [$this->message('Illuminate\Support\Facades\Http'), 24],
         ]);
+    }
+
+    #[Test]
+    public function it_fails_when_an_abstract_parent_performs_io(): void
+    {
+        $this->analyse([
+            $this->getFixturePath('EloquentStateMachines/TriggerInheritsIo.php'),
+            $this->getFixturePath('EloquentStateMachines/AbstractTriggerPerformsIo.php'),
+        ], [
+            [$this->message('Illuminate\Support\Facades\Http'), 14],
+        ]);
+    }
+
+    #[Test]
+    public function it_fails_when_a_trait_of_an_abstract_trigger_performs_io(): void
+    {
+        $this->analyse([
+            $this->getFixturePath('EloquentStateMachines/AbstractTriggerUsesIoTrait.php'),
+            $this->getFixturePath('EloquentStateMachines/PerformsIo.php'),
+        ], [
+            [$this->message('Illuminate\Support\Facades\Http'), 13],
+        ]);
+    }
+
+    #[Test]
+    public function it_passes_when_the_class_is_not_a_trigger(): void
+    {
+        $this->analyse([$this->getFixturePath('EloquentStateMachines/NotATriggerPerformsIo.php')], []);
     }
 
     #[Test]
@@ -62,6 +91,17 @@ class TriggerCannotPerformIoInsideTransactionTest extends RuleTestCase
     public function it_fails_when_a_configured_namespace_is_called(): void
     {
         $this->ioNamespaces = ['Tests\Fixtures\Tooling\EloquentStateMachines\ExternalService'];
+
+        $this->analyse([$this->getFixturePath('EloquentStateMachines/TriggerPerformsConfiguredIo.php')], [
+            [$this->message('Tests\Fixtures\Tooling\EloquentStateMachines\ExternalService\Client'), 19],
+            [$this->message('Tests\Fixtures\Tooling\EloquentStateMachines\ExternalService\Client'), 20],
+        ]);
+    }
+
+    #[Test]
+    public function it_fails_when_a_configured_namespace_differs_in_case(): void
+    {
+        $this->ioNamespaces = ['tests\fixtures\tooling\eloquentstatemachines\EXTERNALSERVICE'];
 
         $this->analyse([$this->getFixturePath('EloquentStateMachines/TriggerPerformsConfiguredIo.php')], [
             [$this->message('Tests\Fixtures\Tooling\EloquentStateMachines\ExternalService\Client'), 19],

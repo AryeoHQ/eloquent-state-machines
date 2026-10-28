@@ -28,6 +28,7 @@ class TriggerPerformsIo extends Trigger
         PsrClient $psr,
         RequestInterface $psrRequest,
         Mailer $mailer,
+        null|PsrClient $optionalPsr,
     ): void {
         Http::post('https://example.com/users', ['id' => $this->user->id]);
         Mail::raw('Activated', fn () => null);
@@ -36,5 +37,6 @@ class TriggerPerformsIo extends Trigger
         $guzzle->request('POST', 'https://example.com/users');
         $psr->sendRequest($psrRequest);
         $mailer->raw('Activated', fn () => null);
+        $optionalPsr?->sendRequest($psrRequest);
     }
 }

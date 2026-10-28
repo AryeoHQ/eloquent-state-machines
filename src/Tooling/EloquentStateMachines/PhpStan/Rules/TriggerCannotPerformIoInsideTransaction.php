@@ -41,7 +41,7 @@ final class TriggerCannotPerformIoInsideTransaction extends Rule
         Mailer::class,
     ];
 
-    /** @var Collection<int, non-falsy-string> */
+    /** @var Collection<int, lowercase-string&non-falsy-string> */
     private Collection $ioNamespaces;
 
     /**
@@ -50,7 +50,7 @@ final class TriggerCannotPerformIoInsideTransaction extends Rule
     public function __construct(array $ioNamespaces = [])
     {
         $this->ioNamespaces = collect($ioNamespaces)
-            ->map(fn (string $namespace): string => trim($namespace, '\\').'\\')
+            ->map(fn (string $namespace): string => strtolower(trim($namespace, '\\').'\\'))
             ->values();
     }
 
@@ -61,7 +61,7 @@ final class TriggerCannotPerformIoInsideTransaction extends Rule
     {
         $classReflection = $scope->getClassReflection();
 
-        if ($classReflection === null || $classReflection->isAbstract()) {
+        if ($classReflection === null) {
             return false;
         }
 
@@ -115,6 +115,6 @@ final class TriggerCannotPerformIoInsideTransaction extends Rule
         $type = new ObjectType($className);
 
         return collect(self::IO_CLASSES)->contains(fn (string $ioClass): bool => (new ObjectType($ioClass))->isSuperTypeOf($type)->yes())
-            || $this->ioNamespaces->contains(fn (string $namespace): bool => str_starts_with(ltrim($className, '\\'), $namespace));
+            || $this->ioNamespaces->contains(fn (string $namespace): bool => str_starts_with(strtolower(ltrim($className, '\\')), $namespace));
     }
 }
