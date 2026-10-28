@@ -5,6 +5,13 @@ parameters:
                 - Tests\TestCase
                 - PHPStan\Testing\RuleTestCase
                 - PHPStan\Testing\PHPStanTestCase
+    eloquentStateMachines:
+        ioNamespaces: []
+
+parametersSchema:
+    eloquentStateMachines: structure([
+        ioNamespaces: listOf(string())
+    ])
 
 services:
     -
@@ -47,6 +54,12 @@ services:
         class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerCannotUseSerializesModels
         tags:
             - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggerCannotPerformIoInsideTransaction
+        tags:
+            - phpstan.rules.rule
+        arguments:
+            ioNamespaces: %eloquentStateMachines.ioNamespaces%
     -
         class: Tooling\EloquentStateMachines\PhpStan\Extensions\TargetPropertyIsAlwaysUsedExtension
         tags:

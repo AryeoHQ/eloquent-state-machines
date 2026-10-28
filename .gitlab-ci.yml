@@ -34,9 +34,15 @@ tests:
   parallel:
     matrix:
       - COMPOSER_REQUIRE: "laravel/framework:12.* orchestra/testbench:10.*"
-        DB_CONNECTION: [sqlite, pgsql]
+        DB_CONNECTION: sqlite
+      - COMPOSER_REQUIRE: "laravel/framework:12.* orchestra/testbench:10.*"
+        DB_CONNECTION: pgsql
+        TEST_COMMAND: ./vendor/bin/testbench package:test
       - COMPOSER_REQUIRE: "laravel/framework:13.* orchestra/testbench:11.*"
-        DB_CONNECTION: [sqlite, pgsql]
+        DB_CONNECTION: sqlite
+      - COMPOSER_REQUIRE: "laravel/framework:13.* orchestra/testbench:11.*"
+        DB_CONNECTION: pgsql
+        TEST_COMMAND: ./vendor/bin/testbench package:test
   services:
     - name: postgres:16
       alias: postgres
