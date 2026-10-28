@@ -334,7 +334,7 @@ The PHPStan rule `eloquentStateMachines.triggerCannotPerformIoInsideTransaction`
 - an object of type `Illuminate\Http\Client\Factory`, `Illuminate\Http\Client\PendingRequest`, `GuzzleHttp\ClientInterface`, `Psr\Http\Client\ClientInterface` or `Illuminate\Contracts\Mail\Mailer`
 - any class in a namespace that the `eloquentStateMachines.ioNamespaces` parameter lists
 
-List the namespaces of your own service clients and SDKs in your `phpstan.neon`. A listed namespace covers every class beneath it:
+List the namespaces of your own service clients and SDKs in a PHPStan config that also loads this package's `tooling/phpstan/phpstan.neon`, which declares the parameter. With `aryeo/tooling-laravel`, that is the file your `extra.tooling.phpstan.rules` names, because `tooling:phpstan` includes it alongside this package's rules. A config that does not load the package's file rejects the parameter as an unexpected item. A listed namespace covers every class beneath it, and the lists from every included file combine:
 
 ```neon
 parameters:
