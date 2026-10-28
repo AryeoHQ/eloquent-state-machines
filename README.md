@@ -204,7 +204,7 @@ Everything else runs as it does for an ordinary transition:
 - `handle()`, with the constructor arguments passed to the trigger method, such as `$user->status->suspend($at)->withoutTransition()`
 - the lifecycle transaction, the refresh after a rollback, and `failed()`
 
-The locked re-read of the persisted row still runs, but it confirms that the row holds the target state. On an ordinary run the re-read stops a second run, because the first run moves the row off the source state. Here the row holds the target state before and after the run. A retried or duplicated run therefore passes the re-read again, and it repeats `handle()` and both events.
+The locked re-read of the persisted row still runs, but it confirms that the row holds the target state. On an ordinary run the re-read stops a second run, because the first run moves the row off the source state. Here the row holds the target state before and after the run. A retried or duplicated run therefore passes the re-read again, and it repeats `handle()` and both events. A `#[WithoutRowLock]` trigger re-reads the row without the lock, as [Reading the Persisted State Without a Row Lock](#reading-the-persisted-state-without-a-row-lock) describes.
 
 On a failure, the state stays where the caller wrote it, and after a transactional rollback `failed()` sees the target state.
 
@@ -299,6 +299,41 @@ Keep the following in mind when opting out:
 - **A `Phase::Before` trigger stays transitioned on failure.** When the transition is written in `before()` (via `#[TransitionDuring(Phase::Before)]`), a later throw in `handle()` leaves the model in the new state, since there is no rollback. The default `Phase::After` transition never lands on a throw because `after()` is never reached.
 - **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[TransitionDuring(...)]`.
 - **Nested transactions still apply.** A `#[WithoutTransaction]` trigger invoked inside another open transaction cannot escape it — its writes are only as durable as the outermost commit.
+
+#### Reading the Persisted State Without a Row Lock
+
+Before `allowed()`, a trigger re-reads its state column from the persisted row with `SELECT … FOR UPDATE`. The trigger refuses with `Attributes\Transitions\Exceptions\Invalid` when the row no longer holds the expected state. Inside the lifecycle transaction, the lock holds the row until the transaction commits. A second run of the same transition therefore waits, and then refuses.
+
+A trigger whose `handle()` waits on I/O, such as an HTTP call, holds that lock for the whole wait. Every other writer to the row waits too. Apply the `#[WithoutRowLock]` attribute when such a trigger already serializes its runs some other way, for example with a cache lock:
+
+```php
+namespace Users\Status\Triggers;
+
+use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
+use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
+use Support\Database\Eloquent\StateMachines\Triggers\WithoutRowLock;
+use Users\User;
+
+#[WithoutRowLock]
+class Send extends Trigger
+{
+    #[Target]
+    public readonly User $user;
+
+    public function handle(): void
+    {
+        // an HTTP call, serialized by a cache lock...
+    }
+}
+```
+
+When present, the trigger re-reads the state column without `FOR UPDATE`. It still refuses when the persisted row does not hold the expected state. Everything else is unchanged.
+
+Keep the following in mind when opting out:
+
+- **The re-read does not stop a concurrent run.** Two runs can both read the source state before either one commits. Both runs then pass the check, and both run `handle()` and the events. Only the serialization you add closes that window.
+- **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[WithoutTransaction]`.
+- **The attribute combines with `#[WithoutTransaction]`.** Each attribute removes one guarantee, and neither depends on the other.
 
 ### Testing
 

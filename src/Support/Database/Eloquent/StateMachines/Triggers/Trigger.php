@@ -44,6 +44,12 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             ->isNotEmpty();
     }
 
+    private bool $withoutRowLock {
+        get => $this->withoutRowLock ??= collect([static::class, ...class_parents($this)])
+            ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(WithoutRowLock::class))
+            ->isNotEmpty();
+    }
+
     private Model $model {
         get => $this->{$this->target()};
         set => $this->{$this->target()} = $value;
@@ -224,7 +230,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             $this->model->getConnection()
                 ->table($this->model->getTable())
                 ->where($this->model->getKeyName(), $this->model->getOriginal($this->model->getKeyName()) ?? $this->model->getKey())
-                ->lockForUpdate()
+                ->unless($this->withoutRowLock, fn ($query) => $query->lockForUpdate())
                 ->value($this->field),
             fn ($value) => is_null($value) ? null : $this->to::tryFrom($value)
         );

@@ -33,6 +33,7 @@ use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
+use Tests\Fixtures\Support\Users\Status\Triggers\ActivateWithoutRowLock;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
@@ -306,6 +307,52 @@ class TriggerTest extends TestCase
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
         Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale, 'status')->now();
+    }
+
+    #[RequiresDatabase('pgsql')]
+    #[Test]
+    public function it_locks_the_persisted_state_when_the_trigger_does_not_opt_out_of_the_row_lock(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        $this->assertTrue($queries->contains(fn (string $sql): bool => str_ends_with($sql, 'for update')));
+    }
+
+    #[RequiresDatabase('pgsql')]
+    #[Test]
+    public function it_reads_the_persisted_state_without_a_row_lock_when_the_trigger_opts_out_of_the_row_lock(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        ActivateWithoutRowLock::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        $this->assertTrue($queries->contains(fn (string $sql): bool => str_starts_with($sql, 'select "status" from "users"')));
+        $queries->each(fn (string $sql) => $this->assertStringNotContainsString('for update', $sql));
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_refuses_a_transition_whose_persisted_state_moved_under_it_when_the_trigger_opts_out_of_the_row_lock(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $this->expectException(Transitions\Exceptions\Invalid::class);
+
+        ActivateWithoutRowLock::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
     }
 
     #[Test]
