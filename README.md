@@ -374,6 +374,8 @@ class User extends Model
 
 A model may cast more than one column to the same enum. A trigger checks, re-reads and writes only the column its proxy was read from: `$user->status->activate()` moves `status`, and `$user->legacy_status->activate()` moves `legacy_status`.
 
+A trigger refuses with `Attributes\Transitions\Exceptions\NotBound` when it has no column, or when its column is not cast to the trigger's enum. The refusal comes before the trigger reads the column, and the trigger changes nothing. A queued trigger whose payload holds no column, or a null column, therefore fails with `NotBound`. `NotBound` extends `Invalid`, so a `failed()` that returns early for `Invalid` also returns early for it. A `ShouldBeUnique` trigger releases its lock.
+
 ### Usage
 Once your model is configured with a state machine enum, you can access the state machine through the casted property (e.g., `$user->status`). This gives you access to trigger methods that correspond to your defined transitions.
 

@@ -33,6 +33,7 @@ use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
+use Tests\Fixtures\Support\Users\Status\Triggers\ActivateUniquely;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
@@ -891,35 +892,90 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    #[WithConfig('cache.default', 'array')]
     public function it_refuses_a_trigger_queued_without_its_column(): void
     {
+        config()->set('queue.default', 'database');
+
         $user = new LegacyStatusUser;
         $user->forceFill(['legacy_status' => Status::Registered, 'status' => Status::Registered])->save();
 
-        $serialized = serialize($user->status->activate());
-        $field = serialize('field').serialize('status');
+        ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->dispatch();
 
-        $this->assertStringContainsString($field, $serialized);
+        $this->rewriteQueuedCommand(function (string $command): string {
+            $field = serialize('field').serialize('status');
 
-        $payload = preg_replace_callback(
-            '/^(O:\d+:"[^"]+":)(\d+)/',
-            fn (array $matches): string => $matches[1].((int) $matches[2] - 1),
-            str_replace($field, '', $serialized)
-        );
+            $this->assertStringContainsString($field, $command);
 
-        try {
-            unserialize($payload)->now();
+            return preg_replace_callback(
+                '/^(O:\d+:"[^"]+":)(\d+)/',
+                fn (array $matches): string => $matches[1].((int) $matches[2] - 1),
+                str_replace($field, '', $command)
+            );
+        });
 
-            $this->fail('A trigger without its column ran.');
-        } catch (\Error $error) {
-            $this->assertSame(\Error::class, $error::class);
-            $this->assertStringContainsString('Trigger::$field must not be accessed before initialization', $error->getMessage());
-        }
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $exception = Context::pull(ActivateUniquely::FAILED);
+
+        $this->assertInstanceOf(Transitions\Exceptions\NotBound::class, $exception);
+        $this->assertSame('['.ActivateUniquely::class.'] is not bound to a state column on [LegacyStatusUser].', $exception->getMessage());
 
         $user->refresh();
 
+        $this->assertNull($user->activated_at);
         $this->assertSame(Status::Registered, $user->status->enum);
         $this->assertSame(Status::Registered, $user->legacy_status->enum);
+    }
+
+    #[Test]
+    #[WithConfig('cache.default', 'array')]
+    public function it_refuses_a_unique_trigger_queued_with_a_null_column_and_releases_its_lock(): void
+    {
+        config()->set('queue.default', 'database');
+
+        $user = User::factory()->registered()->create();
+
+        $trigger = fn (): Trigger => ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status');
+
+        $trigger()->dispatch();
+
+        $this->rewriteQueuedCommand(function (string $command): string {
+            $field = serialize('field').serialize('status');
+
+            $this->assertStringContainsString($field, $command);
+
+            return str_replace($field, serialize('field').serialize(null), $command);
+        });
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertInstanceOf(Transitions\Exceptions\NotBound::class, Context::pull(ActivateUniquely::FAILED));
+        $this->assertNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
+        $this->assertSame(0, DB::table('jobs')->count());
+
+        $trigger()->dispatch();
+
+        $this->assertSame(1, DB::table('jobs')->count());
+    }
+
+    #[Test]
+    public function it_refuses_a_trigger_on_an_empty_column(): void
+    {
+        $this->assertRefusesTheColumn('');
+    }
+
+    #[Test]
+    public function it_refuses_a_trigger_on_a_mistyped_column(): void
+    {
+        $this->assertRefusesTheColumn('staus');
+    }
+
+    #[Test]
+    public function it_refuses_a_trigger_on_a_plain_string_column_holding_the_source_state(): void
+    {
+        $this->assertRefusesTheColumn('previous_status');
     }
 
     #[Test]
@@ -1252,5 +1308,36 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Registered, $user->status->enum);
         $this->assertFalse($user->isDirty(['status', 'legacy_status']));
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    private function assertRefusesTheColumn(string $column): void
+    {
+        $user = User::factory()->registered()->create();
+        $user->forceFill(['previous_status' => Status::Registered->value])->save();
+
+        $columns = $user->refresh()->getAttributes();
+
+        try {
+            Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, $column)->now();
+
+            $this->fail("A trigger on [{$column}] ran.");
+        } catch (Transitions\Exceptions\NotBound $exception) {
+            $this->assertSame('['.Activate::class.'] is not bound to a state column on [User].', $exception->getMessage());
+        }
+
+        $this->assertSame($columns, $user->refresh()->getAttributes());
+    }
+
+    /**
+     * @param  \Closure(string): string  $rewrite
+     */
+    private function rewriteQueuedCommand(\Closure $rewrite): void
+    {
+        $job = DB::table('jobs')->sole();
+
+        $payload = json_decode($job->payload, true, flags: JSON_THROW_ON_ERROR);
+        $payload['data']['command'] = $rewrite($payload['data']['command']);
+
+        DB::table('jobs')->where('id', $job->id)->update(['payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
     }
 }

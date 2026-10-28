@@ -15,6 +15,7 @@ use ReflectionParameter;
 use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
+use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\NotBound;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Triggers\Middleware\ThroughLifecycle;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
@@ -49,7 +50,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         set => $this->{$this->target()} = $value;
     }
 
-    public protected(set) string $field;
+    public protected(set) null|string $field = null;
 
     private null|(StateMachineable&BackedEnum) $current {
         get => with(
@@ -162,6 +163,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final protected function before(): void
     {
+        $this->preventUnboundTransition();
+
         $this->preventInvalidTransition();
 
         $this->preventBlockedTransition();
@@ -181,6 +184,16 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
+    }
+
+    private function preventUnboundTransition(): void
+    {
+        throw_unless(
+            is_string($this->field) && ($this->model->getCasts()[$this->field] ?? null) === $this->to::class,
+            NotBound::class,
+            $this,
+            $this->model
+        );
     }
 
     private function preventInvalidTransition(): void
