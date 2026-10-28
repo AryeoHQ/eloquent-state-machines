@@ -304,11 +304,12 @@ Keep the following in mind when opting out:
 
 Before `allowed()`, a trigger re-reads its state column from the persisted row with `SELECT … FOR UPDATE`. The trigger refuses with `Attributes\Transitions\Exceptions\Invalid` when the row no longer holds the expected state. Inside the lifecycle transaction, the lock holds the row until the transaction commits. A second run of the same transition therefore waits, and then refuses.
 
-A trigger whose `handle()` waits on I/O, such as an HTTP call, holds that lock for the whole wait. Every other writer to the row waits too. Apply the `#[WithoutRowLock]` attribute when such a trigger already serializes its runs some other way, for example with a cache lock:
+A trigger whose `handle()` waits on I/O, such as an HTTP call, holds that lock for the whole wait. Every other writer to the row waits too. Apply the `#[WithoutRowLock]` attribute when such a trigger already serializes its runs some other way. The serialization must wrap the whole run, so that it is held before the re-read. Job middleware does this:
 
 ```php
 namespace Users\Status\Triggers;
 
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Support\Database\Eloquent\StateMachines\Triggers\Target\Target;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\WithoutRowLock;
@@ -320,18 +321,26 @@ class Send extends Trigger
     #[Target]
     public readonly User $user;
 
+    public function middleware(): array
+    {
+        return [new WithoutOverlapping("send:{$this->user->getKey()}")];
+    }
+
     public function handle(): void
     {
-        // an HTTP call, serialized by a cache lock...
+        // an HTTP call...
     }
 }
 ```
+
+A lock taken inside `handle()` does not serialize the runs. Both runs pass the re-read before either one reaches `handle()`, and the second run sends again once the first releases the lock.
 
 When present, the trigger re-reads the state column without `FOR UPDATE`. It still refuses when the persisted row does not hold the expected state. Everything else is unchanged.
 
 Keep the following in mind when opting out:
 
 - **The re-read does not stop a concurrent run.** Two runs can both read the source state before either one commits. Both runs then pass the check, and both run `handle()` and the events. Only the serialization you add closes that window.
+- **A `Phase::Before` trigger still locks the row before `handle()`.** The attribute removes only the re-read's lock. A trigger with `#[TransitionDuring(Phase::Before)]` writes its transition in `before()`, and that `UPDATE` locks the row until the transaction commits. The attribute therefore shortens the lock only for a `Phase::After` trigger, the default.
 - **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[WithoutTransaction]`.
 - **The attribute combines with `#[WithoutTransaction]`.** Each attribute removes one guarantee, and neither depends on the other.
 

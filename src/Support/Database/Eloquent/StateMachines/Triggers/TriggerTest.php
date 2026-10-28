@@ -37,6 +37,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\ActivateWithoutRowLock;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
+use Tests\Fixtures\Support\Users\Status\Triggers\InheritsWithoutRowLock;
 use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
@@ -339,6 +340,43 @@ class TriggerTest extends TestCase
         $this->assertTrue($queries->contains(fn (string $sql): bool => str_starts_with($sql, 'select "status" from "users"')));
         $queries->each(fn (string $sql) => $this->assertStringNotContainsString('for update', $sql));
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+    }
+
+    #[RequiresDatabase('pgsql')]
+    #[Test]
+    public function it_reads_the_persisted_state_without_a_row_lock_when_a_parent_trigger_opts_out_of_the_row_lock(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        InheritsWithoutRowLock::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        $this->assertTrue($queries->contains(fn (string $sql): bool => str_starts_with($sql, 'select "status" from "users"')));
+        $queries->each(fn (string $sql) => $this->assertStringNotContainsString('for update', $sql));
+    }
+
+    #[RequiresDatabase('pgsql')]
+    #[Test]
+    public function it_reads_the_target_state_without_a_row_lock_when_the_trigger_opts_out_and_runs_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        $queries = collect();
+
+        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+
+        ActivateWithoutRowLock::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
+
+        $this->assertTrue($queries->contains(fn (string $sql): bool => str_starts_with($sql, 'select "status" from "users"')));
+        $queries->each(fn (string $sql) => $this->assertStringNotContainsString('for update', $sql));
+        $this->assertNotNull($user->refresh()->activated_at);
     }
 
     #[Test]
