@@ -12,8 +12,6 @@ use Tests\Fixtures\Support\Users\User;
  */
 class Factory extends \Illuminate\Database\Eloquent\Factories\Factory
 {
-    protected $model = User::class;
-
     public function definition()
     {
         return [];

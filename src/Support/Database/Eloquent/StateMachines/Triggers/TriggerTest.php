@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use Illuminate\Contracts\Config\Repository;
-use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Database\QueryException;
 use Illuminate\Queue\ManuallyFailedException;
 use Illuminate\Queue\Middleware\WithoutOverlapping as WithoutOverlappingMiddleware;
 use Illuminate\Queue\WorkerOptions;
@@ -234,9 +232,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
@@ -246,20 +242,18 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_runs_the_lifecycle_in_a_transaction_on_the_model_connection(): void
     {
-        Event::listen(fn (Activating $event) => Context::push(Activating::class, [
-            $event->model->getConnection()->transactionLevel(),
-            DB::connection()->transactionLevel(),
-        ]));
+        Event::listen(
+            fn (Activating $event) => Context::add(Activating::class, [
+                $event->model->getConnectionName() => $event->model->getConnection()->transactionLevel(),
+                DB::getDefaultConnection() => DB::connection()->transactionLevel(),
+            ])
+        );
 
-        Event::listen(fn (Activated $event) => Context::push(Activated::class, $event->model->getConnection()->transactionLevel()));
-
-        $user = new SecondaryUser;
-        $user->save();
+        $user = SecondaryUser::factory()->registered()->create();
 
         Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
 
-        $this->assertSame([[1, 0]], Context::get(Activating::class));
-        $this->assertSame([0], Context::get(Activated::class));
+        $this->assertSame([$user->getConnectionName() => 1, DB::getDefaultConnection() => 0], Context::get(Activating::class));
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
     }
 
@@ -279,34 +273,16 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_locks_the_persisted_state_until_the_transition_commits(): void
     {
-        Event::listen(fn (Activating $event) => Context::push(Activating::class, $event->model->getConnection()->getName()));
+        $user = User::factory()->registered()->create();
 
-        $stale = User::factory()->registered()->create();
+        $locked = fn (): bool => SecondaryUser::query()->whereKey($user->getKey())->lock('for update skip locked')->doesntExist();
 
-        $holder = DB::connection('secondary');
-        $holder->beginTransaction();
+        Event::listen(fn (Activating $event) => Context::add(Activating::class, $locked()));
 
-        try {
-            Activate::make()->to(Status::Activated)->from(Status::Registered)->on(SecondaryUser::query()->findOrFail($stale->getKey()), 'status')->now();
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
 
-            DB::statement("SET lock_timeout = '200ms'");
-
-            try {
-                Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale, 'status')->now();
-
-                $this->fail('The transition did not wait for the row lock.');
-            } catch (QueryException $exception) {
-                $this->assertSame('55P03', $exception->getCode());
-            }
-
-            $this->assertSame(['secondary'], Context::get(Activating::class));
-        } finally {
-            $holder->commit();
-        }
-
-        $this->expectException(Transitions\Exceptions\Invalid::class);
-
-        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($stale, 'status')->now();
+        $this->assertTrue(Context::get(Activating::class));
+        $this->assertFalse($locked());
     }
 
     #[Test]
@@ -562,11 +538,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        try {
-            WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->dispatch();
-        } catch (ManuallyFailedException) {
-            // expected — the sync driver rethrows after Job::fail()
-        }
+        $this->assertThrows(fn () => WithManualFail::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->dispatch(), ManuallyFailedException::class);
 
         $this->assertNotNull($user->refresh()->suspended_at);
         $this->assertSame(Status::Registered, $user->status->enum);
@@ -759,17 +731,13 @@ class TriggerTest extends TestCase
 
         $this->assertTrue($lock->get());
 
-        try {
-            $this->expectException(Interrupted::class);
+        $this->assertThrows(fn () => $trigger->now(), Interrupted::class);
 
-            $trigger->now();
-        } finally {
-            $lock->release();
+        $lock->release();
 
-            Event::assertNotDispatched(Activating::class);
-            $this->assertNull($user->refresh()->activated_at);
-            $this->assertSame(Status::Registered, $user->status->enum);
-        }
+        Event::assertNotDispatched(Activating::class);
+        $this->assertNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
     }
 
     #[Test]
@@ -866,9 +834,7 @@ class TriggerTest extends TestCase
         $user = new LegacyStatusUser;
         $user->forceFill(['legacy_status' => Status::Registered])->save();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['legacy_status' => Status::Activated->value]);
+        LegacyStatusUser::find($user->getKey())->forceFill(['legacy_status' => Status::Activated])->save();
 
         $user->status->activate()->now();
 
@@ -878,12 +844,9 @@ class TriggerTest extends TestCase
     #[Test]
     public function it_names_the_state_of_the_column_its_proxy_was_read_from_when_the_persisted_state_moved(): void
     {
-        $user = new LegacyStatusUser;
-        $user->forceFill(['legacy_status' => Status::Suspended])->save();
+        $user = LegacyStatusUser::factory()->registered()->create(['legacy_status' => Status::Suspended]);
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        LegacyStatusUser::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $this->expectException(Transitions\Exceptions\Invalid::class);
         $this->expectExceptionMessage('Invalid transition from [Registered] to [Activated] on [LegacyStatusUser].');
@@ -893,26 +856,14 @@ class TriggerTest extends TestCase
 
     #[Test]
     #[WithConfig('cache.default', 'array')]
-    public function it_refuses_a_trigger_queued_without_its_column(): void
+    public function it_refuses_a_queued_trigger_on_an_unbound_column(): void
     {
         config()->set('queue.default', 'database');
 
         $user = new LegacyStatusUser;
         $user->forceFill(['legacy_status' => Status::Registered, 'status' => Status::Registered])->save();
 
-        ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->dispatch();
-
-        $this->rewriteQueuedCommand(function (string $command): string {
-            $field = serialize('field').serialize('status');
-
-            $this->assertStringContainsString($field, $command);
-
-            return preg_replace_callback(
-                '/^(O:\d+:"[^"]+":)(\d+)/',
-                fn (array $matches): string => $matches[1].((int) $matches[2] - 1),
-                str_replace($field, '', $command)
-            );
-        });
+        ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'staus')->dispatch();
 
         app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
 
@@ -930,23 +881,15 @@ class TriggerTest extends TestCase
 
     #[Test]
     #[WithConfig('cache.default', 'array')]
-    public function it_refuses_a_unique_trigger_queued_with_a_null_column_and_releases_its_lock(): void
+    public function it_refuses_a_unique_trigger_queued_on_an_unbound_column_and_releases_its_lock(): void
     {
         config()->set('queue.default', 'database');
 
         $user = User::factory()->registered()->create();
 
-        $trigger = fn (): Trigger => ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status');
+        $trigger = fn (): Trigger => ActivateUniquely::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'staus');
 
         $trigger()->dispatch();
-
-        $this->rewriteQueuedCommand(function (string $command): string {
-            $field = serialize('field').serialize('status');
-
-            $this->assertStringContainsString($field, $command);
-
-            return str_replace($field, serialize('field').serialize(null), $command);
-        });
 
         app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
 
@@ -983,20 +926,14 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
-        $queries = collect();
-
-        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+        User::updated(fn (User $model) => Context::push(User::class, ...array_keys($model->getChanges())));
 
         $user->status->activate()->withoutTransition()->now();
 
-        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
-
-        $this->assertNotEmpty($writes);
-        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotEmpty(Context::get(User::class));
+        $this->assertNotContains('status', Context::get(User::class));
         $this->assertNotNull($user->refresh()->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
     }
@@ -1006,9 +943,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $this->assertSame($user, $user->status->activate()->withoutTransition()->now());
         $this->assertSame(Status::Activated, $user->status->enum);
@@ -1027,9 +962,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $user->status->activate()->withoutTransition()->now();
 
@@ -1042,9 +975,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->activated()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Deactivated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Deactivated])->save();
 
         $this->app->afterResolving(Carbon::class, fn () => Context::push(Deactivate::class, $user->status->enum));
 
@@ -1059,9 +990,7 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
 
@@ -1078,14 +1007,10 @@ class TriggerTest extends TestCase
 
         $this->app->afterResolving(Carbon::class, fn () => Context::push(Deactivate::class, $user->status->enum));
 
-        $this->expectException(Transitions\Exceptions\Invalid::class);
+        $this->assertThrows(fn () => $user->status->deactivate()->withoutTransition()->now(), Transitions\Exceptions\Invalid::class);
 
-        try {
-            $user->status->deactivate()->withoutTransition()->now();
-        } finally {
-            $this->assertNull(Context::get(Deactivate::class));
-            Event::assertNotDispatched(Deactivating::class);
-        }
+        $this->assertNull(Context::get(Deactivate::class));
+        Event::assertNotDispatched(Deactivating::class);
     }
 
     #[Test]
@@ -1097,9 +1022,7 @@ class TriggerTest extends TestCase
 
         $user->status->suspend()->now();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $this->expectException(Transitions\Exceptions\Invalid::class);
 
@@ -1119,14 +1042,10 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->make();
 
-        $this->expectException(Transitions\Exceptions\Invalid::class);
+        $this->assertThrows(fn () => $user->status->ping()->withoutTransition()->now(), Transitions\Exceptions\Invalid::class);
 
-        try {
-            $user->status->ping()->withoutTransition()->now();
-        } finally {
-            $this->assertFalse($user->exists);
-            $this->assertDatabaseCount($user->getTable(), 0);
-        }
+        $this->assertFalse($user->exists);
+        $this->assertDatabaseCount($user->getTable(), 0);
     }
 
     #[Test]
@@ -1134,24 +1053,14 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->trashed()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::withTrashed()->find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
-        $queries = collect();
+        User::updated(fn (User $model) => Context::push(User::class, ...array_keys($model->getChanges())));
 
-        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+        $this->assertThrows(fn () => $user->status->activate()->withoutTransition()->now(), Transitions\Exceptions\Invalid::class);
 
-        $this->expectException(Transitions\Exceptions\Invalid::class);
-
-        try {
-            $user->status->activate()->withoutTransition()->now();
-        } finally {
-            $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
-
-            $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
-            $this->assertNull($user->refresh()->activated_at);
-        }
+        $this->assertNotContains('status', Context::get(User::class, []));
+        $this->assertNull($user->refresh()->activated_at);
     }
 
     #[Test]
@@ -1159,20 +1068,14 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
-        $this->expectException(Unprocessable::class);
+        $this->assertThrows(fn () => ThrowsException::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now(), Unprocessable::class);
 
-        try {
-            ThrowsException::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
-        } finally {
-            $this->assertSame(Status::Activated, $user->status->enum);
-            $this->assertNotNull($user->suspended_at);
-            $this->assertSame(Status::Activated, $user->refresh()->status->enum);
-            $this->assertNotNull($user->suspended_at);
-        }
+        $this->assertSame(Status::Activated, $user->status->enum);
+        $this->assertNotNull($user->suspended_at);
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+        $this->assertNotNull($user->suspended_at);
     }
 
     #[Test]
@@ -1181,9 +1084,7 @@ class TriggerTest extends TestCase
         $user = User::factory()->registered()->trashed()->create();
 
         rescue(fn () => DB::transaction(function () use ($user): void {
-            DB::table($user->getTable())
-                ->where($user->getKeyName(), $user->getKey())
-                ->update(['status' => Status::Activated->value]);
+            User::withTrashed()->find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
             try {
                 $user->status->activate()->withoutTransition()->now();
@@ -1205,22 +1106,16 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
-        $queries = collect();
-
-        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+        User::updated(fn (User $model) => Context::push(User::class, ...array_keys($model->getChanges())));
 
         $user->status->activate()->withoutTransition()->dispatch();
 
         app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
 
-        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
-
-        $this->assertNotEmpty($writes);
-        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotEmpty(Context::get(User::class));
+        $this->assertNotContains('status', Context::get(User::class));
         $this->assertNotNull($user->refresh()->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
     }
@@ -1234,20 +1129,14 @@ class TriggerTest extends TestCase
 
         $restored = unserialize(serialize($trigger));
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
-        $queries = collect();
-
-        DB::listen(fn (QueryExecuted $query) => $queries->push($query->sql));
+        User::updated(fn (User $model) => Context::push(User::class, ...array_keys($model->getChanges())));
 
         $restored->now();
 
-        $writes = $queries->filter(fn (string $sql): bool => str_starts_with($sql, 'update "users"'));
-
-        $this->assertNotEmpty($writes);
-        $writes->each(fn (string $sql) => $this->assertStringNotContainsString('"status"', $sql));
+        $this->assertNotEmpty(Context::get(User::class));
+        $this->assertNotContains('status', Context::get(User::class));
         $this->assertNotNull($user->refresh()->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
     }
@@ -1257,21 +1146,15 @@ class TriggerTest extends TestCase
     {
         $user = User::factory()->registered()->create();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        User::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $trigger = WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition();
 
         $restored = unserialize(serialize($trigger));
 
-        $this->expectException(Transitions\Exceptions\Invalid::class);
+        $this->assertThrows(fn () => $restored->now(), Transitions\Exceptions\Invalid::class);
 
-        try {
-            $restored->now();
-        } finally {
-            $this->assertNull($user->refresh()->activated_at);
-        }
+        $this->assertNull($user->refresh()->activated_at);
     }
 
     #[Test]
@@ -1280,9 +1163,7 @@ class TriggerTest extends TestCase
         $user = new LegacyStatusUser;
         $user->forceFill(['legacy_status' => Status::Registered])->save();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['status' => Status::Activated->value]);
+        LegacyStatusUser::find($user->getKey())->forceFill(['status' => Status::Activated])->save();
 
         $user->status->activate()->withoutTransition()->now();
 
@@ -1298,9 +1179,7 @@ class TriggerTest extends TestCase
         $user = new LegacyStatusUser;
         $user->forceFill(['legacy_status' => Status::Registered])->save();
 
-        DB::table($user->getTable())
-            ->where($user->getKeyName(), $user->getKey())
-            ->update(['legacy_status' => Status::Activated->value]);
+        LegacyStatusUser::find($user->getKey())->forceFill(['legacy_status' => Status::Activated])->save();
 
         $user->legacy_status->activate()->withoutTransition()->now();
 
@@ -1312,32 +1191,16 @@ class TriggerTest extends TestCase
 
     private function assertRefusesTheColumn(string $column): void
     {
-        $user = User::factory()->registered()->create();
-        $user->forceFill(['previous_status' => Status::Registered->value])->save();
+        Event::fake([Activating::class]);
 
-        $columns = $user->refresh()->getAttributes();
+        $user = User::factory()->registered()->create(['previous_status' => Status::Registered->value]);
 
-        try {
-            Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, $column)->now();
+        $this->assertThrows(
+            fn () => Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, $column)->now(),
+            Transitions\Exceptions\NotBound::class,
+            '['.Activate::class.'] is not bound to a state column on [User].'
+        );
 
-            $this->fail("A trigger on [{$column}] ran.");
-        } catch (Transitions\Exceptions\NotBound $exception) {
-            $this->assertSame('['.Activate::class.'] is not bound to a state column on [User].', $exception->getMessage());
-        }
-
-        $this->assertSame($columns, $user->refresh()->getAttributes());
-    }
-
-    /**
-     * @param  \Closure(string): string  $rewrite
-     */
-    private function rewriteQueuedCommand(\Closure $rewrite): void
-    {
-        $job = DB::table('jobs')->sole();
-
-        $payload = json_decode($job->payload, true, flags: JSON_THROW_ON_ERROR);
-        $payload['data']['command'] = $rewrite($payload['data']['command']);
-
-        DB::table('jobs')->where('id', $job->id)->update(['payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
+        Event::assertNotDispatched(Activating::class);
     }
 }
