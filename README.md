@@ -183,6 +183,146 @@ When a trigger targets the current state:
 
 This lets you define named, guarded entry points for work within a state without introducing intermediate states into your graph.
 
+#### Calling an External Service From a Trigger
+
+Do not call an external service from inside a trigger's lifecycle transaction. An HTTP request, an email or an SDK call there causes three problems:
+- The transaction and its database connection stay open for the whole call.
+- The locked re-read holds the row lock for the whole call, so every other trigger on that row waits.
+- The service can accept the call, and the commit can still fail afterwards. The database then has no record of the call, and a retry repeats it.
+
+Move the row into a **claim state** instead. A claim state is an ordinary state, built from the package's own parts:
+1. A short trigger moves the row into the claim state and commits. It calls no external service.
+2. The external call runs after the claim commits, outside any transaction.
+3. A second short trigger records the outcome and moves the row out of the claim state.
+
+The locked re-read makes the claim exclusive. A second claim on the same row finds the claim state in the row, and refuses with `Attributes\Transitions\Exceptions\Invalid`.
+
+Give the claim state its own events, and a transition for each outcome:
+
+```php
+enum Status: string implements StateMachineable
+{
+    use ManagesState;
+
+    #[Events(before: Registering::class, after: Registered::class)]
+    #[Transition(to: self::Verifying, using: Triggers\Verify::class)]
+    case Registered = 'registered';
+
+    #[Events(before: StartingVerification::class, after: VerificationStarted::class)]
+    #[Transition(to: self::Activated, using: Triggers\Confirm::class)]
+    #[Transition(to: self::Suspended, using: Triggers\Reject::class)]
+    case Verifying = 'verifying';
+
+    // ...
+}
+```
+
+`Verify` is the claim, and its `handle()` changes only database columns. When the service also reports back later, through a webhook for example, declare the webhook's transitions on the claim state too.
+
+The external call then runs in one of two places.
+
+##### A Queued Listener Makes the Call (Preferred)
+
+The claim state's `after` event fires only once the claim commits. Listen for it with a queued listener, and make the call there:
+
+```php
+namespace Users\Listeners;
+
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Http;
+use Throwable;
+use Users\Status\Events\VerificationStarted;
+
+class SubmitVerification implements ShouldQueue
+{
+    public function handle(VerificationStarted $event): void
+    {
+        $response = Http::post('https://identity.example.com/checks', [
+            'email' => $event->model->email,
+        ])->throw();
+
+        if ($response->json('passed')) {
+            $event->model->status->confirm()->now();
+
+            return;
+        }
+
+        $event->model->status->reject()->now();
+    }
+
+    public function failed(VerificationStarted $event, Throwable $exception): void
+    {
+        $event->model->status->reject()->now();
+    }
+}
+```
+
+The queue retries the listener when the call throws, and its `failed()` moves the row out of the claim state once the retries run out. A retry repeats the external call, so pass an idempotency key where the service accepts one. A refusal before the claim commits still reaches the claim trigger's own `failed()`, as [Failures](#failures) describes.
+
+When the row has already left the claim state, the second trigger refuses with `Invalid`. The listener can catch that refusal and stop.
+
+##### The Caller Makes the Call After the Claim
+
+Some callers need the outcome at once, such as an endpoint that returns the service's answer in its response. Run the claim with `now()`, which returns once the claim commits. Then make the call, and record the outcome:
+
+```php
+$user->status->verify()->now();
+
+try {
+    $response = Http::post('https://identity.example.com/checks', [
+        'email' => $user->email,
+    ])->throw();
+} catch (Throwable $exception) {
+    $user->status->reject()->now();
+
+    throw $exception;
+}
+
+if ($response->json('passed')) {
+    $user->status->confirm()->now();
+} else {
+    $user->status->reject()->now();
+}
+```
+
+Do not run this inside a transaction of your own. The claim then commits only with that transaction, and the call runs inside it.
+
+##### Recovering a Stuck Claim
+
+A process can stop after the claim commits and before the second trigger runs. The row then stays in the claim state. Schedule a sweep that moves a row out of the claim state once it has waited longer than every retry can take:
+
+```php
+User::query()
+    ->where('status', Status::Verifying)
+    ->where('updated_at', '<', now()->subHour())
+    ->lazyById()
+    ->each(fn (User $user) => $user->status->reject()->now());
+```
+
+Once the sweep moves a row, a late webhook's transitions from the claim state no longer apply to it. Skip the sweep when a webhook from the service always resolves the row.
+
+##### Enforcing the Claim State
+
+The PHPStan rule `eloquentStateMachines.triggerCannotPerformIoInsideTransaction` reports a call to an external service from any method of a concrete trigger. It recognizes:
+- the `Http` and `Mail` facades
+- an object of type `Illuminate\Http\Client\Factory`, `Illuminate\Http\Client\PendingRequest`, `GuzzleHttp\ClientInterface`, `Psr\Http\Client\ClientInterface` or `Illuminate\Contracts\Mail\Mailer`
+- any class in a namespace that the `eloquentStateMachines.ioNamespaces` parameter lists
+
+List the namespaces of your own service clients and SDKs in your `phpstan.neon`. A listed namespace covers every class beneath it:
+
+```neon
+parameters:
+    eloquentStateMachines:
+        ioNamespaces:
+            - Acme\Billing
+```
+
+The rule sees direct calls only. It does not report a call that a trigger makes through another class, unless that class sits in a listed namespace.
+
+##### When `#[WithoutTransaction]` Fits
+
+The rule skips a trigger that carries `#[WithoutTransaction]`, on itself or on a parent. That trigger holds no transaction and no row lock across the call. Two runs can then both pass the re-read, and both make the call. Use `#[WithoutTransaction]` only for a side effect that is safe to repeat, as [Opting Out of the Lifecycle Transaction](#opting-out-of-the-lifecycle-transaction) describes.
+
 #### Running a Trigger Without Its Transition
 
 Some callers store the new state themselves before any trigger runs, for example through a database view. `withoutTransition()` runs the transition's trigger for that stored state and does not write the state column again.
@@ -266,7 +406,9 @@ What the state machine adds on top:
 
 By default `before()` → `handle()` runs inside a transaction on the model's connection, so a thrown exception (or a `fail()` outside the queue) rolls back everything the trigger wrote — all-or-nothing state transitions are the core guarantee of the package.
 
-Some triggers, though, do work the database can't take back: an HTTP call, publishing a message, sending an email. For those the transaction's guarantee doesn't fully apply — the side effect lands in the real world even when the surrounding writes roll back. Such a trigger may deliberately want its writes (audit rows, status stamps) to commit as they happen, so each run leaves a durable record alongside the side effect it performed.
+Some triggers, though, do work the database can't take back: an HTTP call, publishing a message, sending an email. For those the transaction's guarantee doesn't fully apply — the side effect lands in the real world even when the surrounding writes roll back. For a call that must not run twice, move the call out of the trigger with a claim state, as [Calling an External Service From a Trigger](#calling-an-external-service-from-a-trigger) describes.
+
+`#[WithoutTransaction]` suits a side effect that is safe to repeat. Such a trigger may deliberately want its writes (audit rows, status stamps) to commit as they happen, so each run leaves a durable record alongside the side effect it performed.
 
 Apply the `#[WithoutTransaction]` attribute to opt a trigger out of the transaction:
 
