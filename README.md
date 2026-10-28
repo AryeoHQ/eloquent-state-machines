@@ -230,36 +230,47 @@ namespace Users\Listeners;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Http;
+use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Throwable;
 use Users\Status\Events\VerificationStarted;
 
 class SubmitVerification implements ShouldQueue
 {
+    public int $tries = 3;
+
     public function handle(VerificationStarted $event): void
     {
         $response = Http::post('https://identity.example.com/checks', [
             'email' => $event->model->email,
         ])->throw();
 
-        if ($response->json('passed')) {
-            $event->model->status->confirm()->now();
+        try {
+            if ($response->json('passed')) {
+                $event->model->status->confirm()->now();
 
+                return;
+            }
+
+            $event->model->status->reject()->now();
+        } catch (Invalid) {
             return;
         }
-
-        $event->model->status->reject()->now();
     }
 
     public function failed(VerificationStarted $event, Throwable $exception): void
     {
-        $event->model->status->reject()->now();
+        try {
+            $event->model->status->reject()->now();
+        } catch (Invalid) {
+            return;
+        }
     }
 }
 ```
 
 The queue retries the listener when the call throws, and its `failed()` moves the row out of the claim state once the retries run out. A retry repeats the external call, so pass an idempotency key where the service accepts one. A refusal before the claim commits still reaches the claim trigger's own `failed()`, as [Failures](#failures) describes.
 
-When the row has already left the claim state, the second trigger refuses with `Invalid`. The listener can catch that refusal and stop.
+When the row has already left the claim state, the second trigger refuses with `Invalid`. The listener catches that refusal and stops, so the queue does not retry the call.
 
 ##### The Caller Makes the Call After the Claim
 
@@ -273,17 +284,26 @@ try {
         'email' => $user->email,
     ])->throw();
 } catch (Throwable $exception) {
-    $user->status->reject()->now();
+    try {
+        $user->status->reject()->now();
+    } catch (Invalid) {
+    }
 
     throw $exception;
 }
 
-if ($response->json('passed')) {
-    $user->status->confirm()->now();
-} else {
-    $user->status->reject()->now();
+try {
+    if ($response->json('passed')) {
+        $user->status->confirm()->now();
+    } else {
+        $user->status->reject()->now();
+    }
+} catch (Invalid) {
+    return;
 }
 ```
+
+When the row has already left the claim state, the second trigger refuses with `Invalid`. The caller catches that refusal and stops. When the call itself throws, the caller still rethrows the call's exception.
 
 Do not run this inside a transaction of your own. The claim then commits only with that transaction, and the call runs inside it.
 
@@ -296,14 +316,20 @@ User::query()
     ->where('status', Status::Verifying)
     ->where('updated_at', '<', now()->subHour())
     ->lazyById()
-    ->each(fn (User $user) => $user->status->reject()->now());
+    ->each(function (User $user): void {
+        try {
+            $user->status->reject()->now();
+        } catch (Invalid) {
+            return;
+        }
+    });
 ```
 
-Once the sweep moves a row, a late webhook's transitions from the claim state no longer apply to it. Skip the sweep when a webhook from the service always resolves the row.
+A row can leave the claim state after the sweep loads it, so the sweep catches `Invalid` for each row and moves on. Once the sweep moves a row, a late webhook's transitions from the claim state no longer apply to it. Skip the sweep when a webhook from the service always resolves the row.
 
 ##### Enforcing the Claim State
 
-The PHPStan rule `eloquentStateMachines.triggerCannotPerformIoInsideTransaction` reports a call to an external service from any method of a concrete trigger. It recognizes:
+The PHPStan rule `eloquentStateMachines.triggerCannotPerformIoInsideTransaction` reports a call to an external service from any method of a trigger, including an abstract trigger and a trait that a trigger uses. It recognizes:
 - the `Http` and `Mail` facades
 - an object of type `Illuminate\Http\Client\Factory`, `Illuminate\Http\Client\PendingRequest`, `GuzzleHttp\ClientInterface`, `Psr\Http\Client\ClientInterface` or `Illuminate\Contracts\Mail\Mailer`
 - any class in a namespace that the `eloquentStateMachines.ioNamespaces` parameter lists
@@ -317,7 +343,7 @@ parameters:
             - Acme\Billing
 ```
 
-The rule sees direct calls only. It does not report a call that a trigger makes through another class, unless that class sits in a listed namespace.
+The rule sees direct calls only. It does not report a call that a trigger makes through another class, unless that class sits in a listed namespace. The rule also reports a call inside a closure passed to `afterCommit()`, although that closure runs after the commit. Clear that report with `@phpstan-ignore eloquentStateMachines.triggerCannotPerformIoInsideTransaction`.
 
 ##### When `#[WithoutTransaction]` Fits
 
