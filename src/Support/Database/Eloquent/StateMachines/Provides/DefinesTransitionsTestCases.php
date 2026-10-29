@@ -7,7 +7,9 @@ namespace Support\Database\Eloquent\StateMachines\Provides;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\ExpectationFailedException;
 use PHPUnit\Framework\TestCase;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\Reused;
 use Tests\Fixtures\Support\Users\Status\Status;
+use Tests\Fixtures\Tooling\EloquentStateMachines\ReusedTransitionEvent;
 
 /**
  * @mixin TestCase
@@ -51,5 +53,13 @@ trait DefinesTransitionsTestCases
         $this->expectException(ExpectationFailedException::class);
 
         Status::Registered->assertIsTerminal();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_an_event_is_declared_twice(): void
+    {
+        $this->expectException(Reused::class);
+
+        ReusedTransitionEvent::Pending->transitions();
     }
 }

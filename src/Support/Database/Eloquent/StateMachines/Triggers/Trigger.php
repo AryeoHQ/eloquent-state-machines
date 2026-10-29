@@ -6,6 +6,7 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -47,10 +48,15 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             ->isNotEmpty();
     }
 
-    private Events $events {
-        get => $this->events ??= $this->from->transitions()->first(
+    private null|Transition $declared {
+        get => $this->declared ??= $this->from->transitions()->first(
             fn (Transition $transition): bool => $transition->using === static::class && $transition->to === $this->to
-        )->events ?? $this->to->events();
+        );
+    }
+
+    /** @var Collection<int, Events> */
+    private Collection $events {
+        get => $this->events ??= collect([$this->to->events(), $this->declared?->events])->filter()->values();
     }
 
     private Model $model {
@@ -72,6 +78,10 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     private bool $changesState {
         get => $this->changesState ??= $this->current !== $this->to;
+    }
+
+    private bool $firesEvents {
+        get => $this->firesEvents ??= $this->changesState || $this->declared !== null;
     }
 
     public protected(set) bool $withoutTransition = false;
@@ -177,10 +187,9 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
         $this->preventBlockedTransition();
 
-        when($this->changesState, function () {
-            $this->dispatchEvent($this->events->before);
-            $this->transition(Phase::Before);
-        });
+        when($this->firesEvents, fn () => $this->events->each(fn (Events $events) => $this->dispatchEvent($events->before)));
+
+        when($this->changesState, fn () => $this->transition(Phase::Before));
     }
 
     final protected function after(): void
@@ -190,7 +199,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             when(! $this->withoutTransition || $this->model->isDirty(), fn () => $this->save());
 
-            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->events->after)));
+            when($this->firesEvents, fn () => $this->model->getConnection()->afterCommit(fn () => $this->events->each(fn (Events $events) => $this->dispatchEvent($events->after))));
         });
     }
 

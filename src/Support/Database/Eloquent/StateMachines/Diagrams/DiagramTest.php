@@ -115,6 +115,17 @@ class DiagramTest extends TestCase
     }
 
     #[Test]
+    public function it_labels_a_transition_with_its_own_events(): void
+    {
+        $updated = new Diagram(Status::class, Direction::LeftToRight)->toMermaid()->toString();
+
+        $this->assertStringContainsString('Registered --> Activated: approve() / Approving, Approved', $updated);
+        $this->assertStringContainsString('note right of Registered: remind() / Reminding, Reminded', $updated);
+        $this->assertStringContainsString('Registered --> Activated: activate()'.PHP_EOL, $updated);
+        $this->assertStringContainsString('note right of Registered: ping()'.PHP_EOL, $updated);
+    }
+
+    #[Test]
     public function update_only_modifies_when_matched(): void
     {
         $current = <<<'MD'

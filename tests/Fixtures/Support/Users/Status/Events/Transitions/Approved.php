@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Tests\Fixtures\Support\Users\Status\Events;
+namespace Tests\Fixtures\Support\Users\Status\Events\Transitions;
 
 use Tests\Fixtures\Support\Users\User;
 
-class Approving
+class Approved
 {
     public readonly User $model;
 

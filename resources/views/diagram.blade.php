@@ -8,7 +8,10 @@
             'transitions' => collect($case->transitions())->map(
                 fn (Transition $transition) => (object) [
                     'to' => $transition->to->name,
-                    'trigger' => str(class_basename($transition->using))->camel()->toString(),
+                    'label' => str(class_basename($transition->using))->camel()->append('()')->when(
+                        $transition->events,
+                        fn ($label) => $label->append(' / ', class_basename($transition->events->before), ', ', class_basename($transition->events->after))
+                    )->toString(),
                 ]
             ),
         ]
@@ -28,9 +31,9 @@ stateDiagram-v2
 @foreach($cases as $case)
 @foreach($case->transitions as $transition)
 @if($case->name === $transition->to)
-    note right of {{ $case->name }}: {{ $transition->trigger }}()
+    note right of {{ $case->name }}: {{ $transition->label }}
 @else
-    {{ $case->name }} --> {{ $transition->to }}: {{ $transition->trigger }}()
+    {{ $case->name }} --> {{ $transition->to }}: {{ $transition->label }}
 @endif
 @endforeach
 @endforeach

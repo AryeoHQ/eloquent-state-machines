@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 use PHPUnit\Framework\Assert;
 use ReflectionAttribute;
 use ReflectionEnumBackedCase;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Declarations;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 
 trait DefinesTransitions
@@ -17,6 +18,8 @@ trait DefinesTransitions
      */
     public function transitions(): Collection
     {
+        Declarations::preventReuse(static::class);
+
         $reflection = new ReflectionEnumBackedCase($this, $this->name);
 
         return collect($reflection->getAttributes(Transition::class))->map(
