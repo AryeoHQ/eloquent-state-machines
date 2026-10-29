@@ -180,7 +180,10 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         when(! $this->failedOrReleased, function () {
             when($this->changesState, fn () => $this->transition(Phase::After));
 
-            $this->model->save();
+            when(
+                ! $this->withoutTransition || $this->model->isDirty(),
+                fn () => throw_unless($this->model->save(), Exceptions\NotSaved::class, $this, $this->model, $this->field)
+            );
 
             when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });
@@ -285,7 +288,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             return;
         }
 
-        $this->model->forceFill([$this->field => $this->to])->save();
+        throw_unless($this->model->forceFill([$this->field => $this->to])->save(), Exceptions\NotSaved::class, $this, $this->model, $this->field);
     }
 
     /**
