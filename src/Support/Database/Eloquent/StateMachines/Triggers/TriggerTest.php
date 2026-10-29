@@ -42,6 +42,9 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
+use Tests\Fixtures\Support\Users\Status\Triggers\SavesActivation;
+use Tests\Fixtures\Support\Users\Status\Triggers\SavesActivationWithoutTransaction;
+use Tests\Fixtures\Support\Users\Status\Triggers\SavesTargetState;
 use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsException;
 use Tests\Fixtures\Support\Users\Status\Triggers\ThrowsExceptionAfterWrite;
@@ -679,6 +682,270 @@ class TriggerTest extends TestCase
 
         $this->assertTrue(Context::get(Activated::class));
         $this->assertNotNull($user->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_a_saving_listener_vetoes_the_save_and_run_sync(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('status') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->activated_at);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_an_updating_listener_vetoes_the_save_and_run_sync(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::updating(fn (User $updating) => $updating->isDirty('status') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_a_saving_listener_vetoes_the_save_and_run_async(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('status') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->dispatch();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_a_listener_vetoes_only_the_transition_save(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $vetoed = false;
+
+        User::saving(function (User $saving) use (&$vetoed) {
+            if ($vetoed || ! $saving->isDirty('status')) {
+                return null;
+            }
+
+            $vetoed = true;
+
+            return false;
+        });
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            $this->assertTrue($vetoed);
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_before_handle_when_a_listener_vetoes_only_the_transition_save_and_phase_is_before(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $vetoed = false;
+
+        User::saving(function (User $saving) use (&$vetoed) {
+            if ($vetoed || ! $saving->isDirty('status')) {
+                return null;
+            }
+
+            $vetoed = true;
+
+            return false;
+        });
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            $this->assertTrue($vetoed);
+            $this->assertNull(Context::get(ActivateBeforeTransition::class));
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_names_the_trigger_the_model_its_key_and_the_field_when_not_saved(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('status') ? false : null);
+
+        try {
+            Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+            $this->fail('A vetoed save did not throw.');
+        } catch (Exceptions\NotSaved $exception) {
+            $this->assertSame('['.Activate::class.'] did not save [User] with key ['.$user->getKey().'] on [status].', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_keeps_handle_writes_when_a_listener_vetoes_the_save_and_trigger_opts_out_of_transaction(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('status') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            SavesActivationWithoutTransaction::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNotNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_the_transition_when_a_listener_vetoes_the_save_after_handle_and_phase_is_before(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('activated_at') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_a_listener_vetoes_the_save_after_handle_and_run_without_transition(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        User::saving(fn (User $saving) => $saving->isDirty('activated_at') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            $user->status->activate()->withoutTransition()->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+        }
+    }
+
+    #[Test]
+    public function it_commits_the_transition_when_a_listener_vetoes_only_the_clean_save_after_handle(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->getRawOriginal('status') === Status::Activated->value ? false : null);
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        Event::assertDispatched(Activated::class);
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_the_transition_when_a_listener_dirties_the_clean_save_after_handle_and_vetoes_it(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(function (User $saving) {
+            if ($saving->isDirty()) {
+                return null;
+            }
+
+            $saving->markSuspended();
+
+            return false;
+        });
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertNull($user->suspended_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_commits_the_transition_when_handle_saves_the_target_state_and_a_listener_vetoes_clean_saves(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty() ? null : false);
+
+        SavesTargetState::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        Event::assertDispatched(Activated::class);
+        $this->assertNotNull($user->refresh()->activated_at);
         $this->assertSame(Status::Activated, $user->status->enum);
     }
 
@@ -1397,6 +1664,65 @@ class TriggerTest extends TestCase
 
         $this->assertSame([2], Context::get(Approving::class));
         $this->assertSame([0], Context::get(Approved::class));
+    }
+
+    #[Test]
+    public function it_fires_saved_once_when_handle_saves_and_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        User::saved(fn (User $saved) => Context::push(User::class, array_keys($saved->getChanges())));
+
+        SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->now();
+
+        $this->assertCount(1, $changes = Context::get(User::class, []));
+        $this->assertContains('activated_at', $changes[0]);
+        $this->assertNotNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_fires_saved_once_when_handle_saves_and_run_without_transition_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        User::saved(fn (User $saved) => Context::push(User::class, array_keys($saved->getChanges())));
+
+        SavesActivation::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->withoutTransition()->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertCount(1, $changes = Context::get(User::class, []));
+        $this->assertContains('activated_at', $changes[0]);
+        $this->assertNotNull($user->refresh()->activated_at);
+    }
+
+    #[Test]
+    public function it_saves_what_handle_left_unsaved_when_run_without_transition(): void
+    {
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        User::saved(fn (User $saved) => Context::push(User::class, array_keys($saved->getChanges())));
+
+        $user->status->activate()->withoutTransition()->now();
+
+        $this->assertCount(1, $changes = Context::get(User::class, []));
+        $this->assertContains('activated_at', $changes[0]);
+        $this->assertFalse($user->isDirty());
+        $this->assertNotNull($user->refresh()->activated_at);
     }
 
     private function assertRefusesTheColumn(string $column): void
