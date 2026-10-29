@@ -27,6 +27,8 @@ use Tests\Fixtures\Support\Users\LegacyStatusUser;
 use Tests\Fixtures\Support\Users\SecondaryUser;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\Approved;
+use Tests\Fixtures\Support\Users\Status\Events\Approving;
 use Tests\Fixtures\Support\Users\Status\Events\Deactivating;
 use Tests\Fixtures\Support\Users\Status\Events\Registered;
 use Tests\Fixtures\Support\Users\Status\Events\Registering;
@@ -1308,6 +1310,77 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Registered, $user->status->enum);
         $this->assertFalse($user->isDirty(['status', 'legacy_status']));
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_fires_the_transitions_own_events_instead_of_the_states(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->approve()->now();
+
+        Event::assertDispatched(Approving::class, fn (Approving $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approved::class, fn (Approved $event): bool => $event->model->is($user));
+        Event::assertNotDispatched(Activating::class);
+        Event::assertNotDispatched(Activated::class);
+    }
+
+    #[Test]
+    public function it_fires_the_states_events_for_a_transition_into_the_same_state_without_its_own(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->activate()->now();
+
+        Event::assertDispatched(Activating::class);
+        Event::assertDispatched(Activated::class);
+        Event::assertNotDispatched(Approving::class);
+        Event::assertNotDispatched(Approved::class);
+    }
+
+    #[Test]
+    public function it_fires_the_transitions_own_events_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->approve()->dispatch();
+
+        Event::assertNotDispatched(Approving::class);
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+        Event::assertDispatched(Approving::class);
+        Event::assertDispatched(Approved::class);
+        Event::assertNotDispatched(Activating::class);
+        Event::assertNotDispatched(Activated::class);
+    }
+
+    #[Test]
+    public function it_fires_the_transitions_own_after_event_once_the_transition_commits(): void
+    {
+        Event::listen(fn (Approving $event) => Context::push(Approving::class, $event->model->getConnection()->transactionLevel()));
+
+        Event::listen(fn (Approved $event) => Context::push(Approved::class, $event->model->getConnection()->transactionLevel()));
+
+        $user = User::factory()->registered()->create();
+
+        DB::transaction(function () use ($user): void {
+            $user->status->approve()->now();
+
+            $this->assertNull(Context::get(Approved::class));
+        });
+
+        $this->assertSame([2], Context::get(Approving::class));
+        $this->assertSame([0], Context::get(Approved::class));
     }
 
     private function assertRefusesTheColumn(string $column): void

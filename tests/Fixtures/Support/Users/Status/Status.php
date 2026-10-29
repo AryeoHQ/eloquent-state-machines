@@ -10,6 +10,8 @@ use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Provides\ManagesState;
 use Tests\Fixtures\Support\Users\Status\Events\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\Approved;
+use Tests\Fixtures\Support\Users\Status\Events\Approving;
 use Tests\Fixtures\Support\Users\Status\Events\Deactivated;
 use Tests\Fixtures\Support\Users\Status\Events\Deactivating;
 use Tests\Fixtures\Support\Users\Status\Events\Registered;
@@ -17,6 +19,7 @@ use Tests\Fixtures\Support\Users\Status\Events\Registering;
 use Tests\Fixtures\Support\Users\Status\Events\Suspended;
 use Tests\Fixtures\Support\Users\Status\Events\Suspending;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Approve;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
@@ -26,6 +29,7 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Suspend;
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Onboard onboard()
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Ping ping()
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Activate activate()
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Approve approve()
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Suspend suspend(?\Carbon\Carbon $at = null)
  * @method \Tests\Fixtures\Support\Users\Status\Triggers\Deactivate deactivate()
  */
@@ -37,6 +41,7 @@ enum Status: string implements StateMachineable
     #[Transition(to: self::Registered, using: Onboard::class)]
     #[Transition(to: self::Registered, using: Ping::class)]
     #[Transition(to: self::Activated, using: Activate::class)]
+    #[Transition(to: self::Activated, using: Approve::class, before: Approving::class, after: Approved::class)]
     #[Transition(to: self::Suspended, using: Suspend::class)]
     case Registered = 'registered';
 

@@ -14,8 +14,10 @@ use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\NotBound;
+use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Triggers\Middleware\ThroughLifecycle;
 use Support\Database\Eloquent\StateMachines\Triggers\Phases\Phase;
@@ -43,6 +45,12 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         get => $this->withoutTransaction ??= collect([static::class, ...class_parents($this)])
             ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(WithoutTransaction::class))
             ->isNotEmpty();
+    }
+
+    private Events $events {
+        get => $this->events ??= $this->from->transitions()->first(
+            fn (Transition $transition): bool => $transition->using === static::class && $transition->to === $this->to
+        )->events ?? $this->to->events();
     }
 
     private Model $model {
@@ -170,7 +178,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         $this->preventBlockedTransition();
 
         when($this->changesState, function () {
-            $this->dispatchEvent($this->to->events()->before);
+            $this->dispatchEvent($this->events->before);
             $this->transition(Phase::Before);
         });
     }
@@ -182,7 +190,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             $this->model->save();
 
-            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
+            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->events->after)));
         });
     }
 

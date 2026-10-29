@@ -153,6 +153,20 @@ enum Status: string implements StateMachineable
 }
 ```
 
+#### Transition Events
+
+By default, a trigger dispatches the target state's `#[Events]`, so every transition into one state raises the same pair. A transition can declare its own `before` and `after` events instead:
+
+```php
+#[Events(before: Suspending::class, after: Suspended::class)]
+#[Transition(to: self::Activated, using: Triggers\Reinstate::class, before: Reinstating::class, after: Reinstated::class)]
+case Suspended = 'suspended';
+```
+
+`reinstate()` raises `Reinstating` and `Reinstated`, and does not raise `Activating` or `Activated`. A transition into `Activated` that declares no events still raises the state's pair. The transition's events follow the same rules as the state's: the `before` event fires inside the transaction, the `after` event fires after the commit, and a stationary transition fires neither.
+
+A transition declares both events or neither. A transition that declares one throws `Attributes\Events\Exceptions\Incomplete`, and an event class that does not exist throws `Attributes\Events\Exceptions\NotFound`. The state's `#[Events]` stays required on every case.
+
 #### Stationary Transitions
 
 A transition can target the current state. This is useful when a state represents a holding pattern — the trigger executes guarded logic without moving the model to a new state.
@@ -437,6 +451,7 @@ stateDiagram-v2
     note right of Registered: onboard()
     note right of Registered: ping()
     Registered --> Activated: activate()
+    Registered --> Activated: approve()
     Registered --> Suspended: suspend()
     Activated --> Deactivated: deactivate()
 ```
