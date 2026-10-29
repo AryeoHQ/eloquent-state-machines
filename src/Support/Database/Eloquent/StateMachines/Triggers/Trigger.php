@@ -67,7 +67,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             false => $this->current,
             true => with(
                 $this->model->newModelQuery()
-                    ->whereKey($this->model->getOriginal($this->model->getKeyName()) ?? $this->model->getKey())
+                    ->whereKey($this->model->getRawOriginal($this->model->getKeyName()) ?? $this->model->getKey())
                     ->lockForUpdate()
                     ->toBase()
                     ->value($this->field),
