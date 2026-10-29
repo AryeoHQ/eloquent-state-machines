@@ -252,7 +252,7 @@ class Upload extends Trigger
 
 When the lifecycle transaction rolls back (a thrown exception, or a manual `fail()` outside the queue), the model is refreshed before `failed()` runs, so `failed()` sees the database's truth — not in-memory state left over from the rolled-back `handle()` work. On a queue worker a manual `fail()` commits the transaction rather than rolling it back, so no refresh occurs (see below).
 
-A `saving`, `creating` or `updating` listener that returns `false` cancels a `save()`. The trigger checks two of them: the save that writes the state column at the trigger's phase, and the save after `handle()`. When either one is cancelled while it has changes to write, the trigger throws `Triggers\Exceptions\NotSaved`, which names the trigger, the model, its key and the state column. A cancelled `Phase::Before` save throws before `handle()` runs. The lifecycle transaction rolls back, the model is refreshed, `failed()` runs, and the after event does not fire.
+A `saving`, `creating` or `updating` listener that returns `false` cancels a `save()`. The trigger checks two of them: the save that writes the state column at the trigger's phase, and the save after `handle()`. When either one is cancelled while it has changes to write, or leaves changes unsaved, the trigger throws `Triggers\Exceptions\NotSaved`, which names the trigger, the model, its key and the state column. A cancelled `Phase::Before` save throws before `handle()` runs. The lifecycle transaction rolls back, the model is refreshed, `failed()` runs, and the after event does not fire.
 
 #### Manually Failing a Trigger
 
