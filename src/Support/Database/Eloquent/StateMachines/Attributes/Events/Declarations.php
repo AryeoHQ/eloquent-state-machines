@@ -15,16 +15,27 @@ use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 final class Declarations
 {
     /**
+     * @var array<class-string, true>
+     */
+    private static array $checked = [];
+
+    /**
      * @param  class-string<StateMachineable&BackedEnum>  $enum
      */
     public static function preventReuse(string $enum): void
     {
+        if (array_key_exists($enum, self::$checked)) {
+            return;
+        }
+
         collect($enum::cases())
             ->flatMap(fn (StateMachineable&BackedEnum $case): Collection => self::of($case))
             ->groupBy('event')
             ->map(fn (Collection $declarations): Collection => $declarations->pluck('on')->unique()->values())
             ->filter(fn (Collection $on): bool => $on->count() > 1)
             ->each(fn (Collection $on, string $event) => throw new Reused($event, $on[0], $on[1]));
+
+        self::$checked[$enum] = true;
     }
 
     /**
