@@ -7,6 +7,7 @@ namespace Support\Database\Eloquent\StateMachines\Attributes\Events;
 use BackedEnum;
 use Illuminate\Support\Collection;
 use ReflectionAttribute;
+use ReflectionClass;
 use ReflectionEnumBackedCase;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\Reused;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
@@ -39,7 +40,7 @@ final class Declarations
     }
 
     /**
-     * @return Collection<int, array{event: string, on: string}>
+     * @return Collection<int, array{event: class-string<object>, on: string}>
      */
     private static function of(StateMachineable&BackedEnum $case): Collection
     {
@@ -57,8 +58,8 @@ final class Declarations
                     ])
             )
             ->flatMap(fn (array $declaration): array => [
-                ['event' => $declaration['events']->before, 'on' => $declaration['on']],
-                ['event' => $declaration['events']->after, 'on' => $declaration['on']],
+                ['event' => (new ReflectionClass($declaration['events']->before))->getName(), 'on' => $declaration['on']],
+                ['event' => (new ReflectionClass($declaration['events']->after))->getName(), 'on' => $declaration['on']],
             ]);
     }
 }
