@@ -180,10 +180,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         when(! $this->failedOrReleased, function () {
             when($this->changesState, fn () => $this->transition(Phase::After));
 
-            when(
-                ! $this->withoutTransition || $this->model->isDirty(),
-                fn () => throw_unless($this->model->save(), Exceptions\NotSaved::class, $this, $this->model, $this->field)
-            );
+            when(! $this->withoutTransition || $this->model->isDirty(), function () {
+                $pending = ! $this->model->exists || $this->model->isDirty();
+
+                throw_if(! $this->model->save() && $pending, Exceptions\NotSaved::class, $this, $this->model, $this->field);
+            });
 
             when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
         });

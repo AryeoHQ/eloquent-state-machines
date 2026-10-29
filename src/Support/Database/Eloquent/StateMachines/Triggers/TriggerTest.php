@@ -842,6 +842,65 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_throws_not_saved_and_rolls_back_the_transition_when_a_listener_vetoes_the_save_after_handle_and_phase_is_before(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->isDirty('activated_at') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            ActivateBeforeTransition::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+            $this->assertSame(Status::Registered, $user->status->enum);
+        }
+    }
+
+    #[Test]
+    public function it_throws_not_saved_and_rolls_back_handle_when_a_listener_vetoes_the_save_after_handle_and_run_without_transition(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update(['status' => Status::Activated->value]);
+
+        User::saving(fn (User $saving) => $saving->isDirty('activated_at') ? false : null);
+
+        $this->expectException(Exceptions\NotSaved::class);
+
+        try {
+            $user->status->activate()->withoutTransition()->now();
+        } finally {
+            Event::assertNotDispatched(Activated::class);
+            $this->assertNull($user->refresh()->activated_at);
+        }
+    }
+
+    #[Test]
+    public function it_commits_the_transition_when_a_listener_vetoes_only_the_clean_save_after_handle(): void
+    {
+        Event::fake([Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        User::saving(fn (User $saving) => $saving->getRawOriginal('status') === Status::Activated->value ? false : null);
+
+        Activate::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        Event::assertDispatched(Activated::class);
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Activated, $user->status->enum);
+    }
+
+    #[Test]
     public function it_throws_invalid_exception_when_the_model_left_the_starting_state(): void
     {
         $this->expectException(Transitions\Exceptions\Invalid::class);
