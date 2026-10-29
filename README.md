@@ -208,7 +208,7 @@ The locked re-read of the persisted row still runs, but it confirms that the row
 
 On a failure, the state stays where the caller wrote it, and after a transactional rollback `failed()` sees the target state.
 
-At the trigger's declared phase, the state attribute takes the target state and is marked as unchanged. `handle()` and both event listeners therefore see what they see on an ordinary run. The `save()` after `handle()` writes only what `handle()` changed. `now()` returns the model, which holds the target state with no unsaved state change.
+At the trigger's declared phase, the state attribute takes the target state and is marked as unchanged. `handle()` and both event listeners therefore see what they see on an ordinary run. The `save()` after `handle()` writes only what `handle()` changed. When `handle()` leaves nothing unsaved, the trigger skips that `save()`, so a `saved` listener runs once for `handle()`'s own save. `now()` returns the model, which holds the target state with no unsaved state change.
 
 Inside a caller's transaction on the model's connection, the lifecycle transaction becomes a savepoint. A refusal, or an exception from `handle()`, is thrown inside the caller's transaction, so the caller can still roll back its own write. What `handle()` changed commits with the caller's transaction. The after event fires when the caller's transaction commits.
 
@@ -251,6 +251,8 @@ class Upload extends Trigger
 ```
 
 When the lifecycle transaction rolls back (a thrown exception, or a manual `fail()` outside the queue), the model is refreshed before `failed()` runs, so `failed()` sees the database's truth — not in-memory state left over from the rolled-back `handle()` work. On a queue worker a manual `fail()` commits the transaction rather than rolling it back, so no refresh occurs (see below).
+
+A `saving`, `creating` or `updating` listener that returns `false` cancels a `save()`. The trigger checks two of them: the save that writes the state column at the trigger's phase, and the save after `handle()`. When either one is cancelled while it has changes to write, or leaves changes unsaved, the trigger throws `Triggers\Exceptions\NotSaved`, which names the trigger, the model, its key and the state column. A cancelled `Phase::Before` save throws before `handle()` runs. The lifecycle transaction rolls back, the model is refreshed, `failed()` runs, and the after event does not fire.
 
 #### Manually Failing a Trigger
 
@@ -296,6 +298,7 @@ When present, `lifecycle()` runs `before()` → `handle()` without opening a tra
 Keep the following in mind when opting out:
 
 - **Writes are not rolled back.** If `handle()` throws (or calls `fail()`), whatever it already wrote stays committed. Because there is nothing to roll back, the model is **not** refreshed before `failed()` runs — `failed()` sees the in-memory state `handle()` left behind.
+- **A cancelled save keeps `handle()`'s writes.** When a listener cancels the `save()` after `handle()`, the trigger still throws `Triggers\Exceptions\NotSaved` and the after event does not fire. What `handle()` already wrote stays committed.
 - **A `Phase::Before` trigger stays transitioned on failure.** When the transition is written in `before()` (via `#[TransitionDuring(Phase::Before)]`), a later throw in `handle()` leaves the model in the new state, since there is no rollback. The default `Phase::After` transition never lands on a throw because `after()` is never reached.
 - **The attribute is inheritable.** Resolution walks `class_parents`, mirroring `#[TransitionDuring(...)]`.
 - **Nested transactions still apply.** A `#[WithoutTransaction]` trigger invoked inside another open transaction cannot escape it — its writes are only as durable as the outermost commit.
