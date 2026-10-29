@@ -36,6 +36,7 @@ use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateUniquely;
+use Tests\Fixtures\Support\Users\Status\Triggers\Approve;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
@@ -1360,6 +1361,21 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Activated, $user->refresh()->status->enum);
         Event::assertDispatched(Approving::class);
         Event::assertDispatched(Approved::class);
+        Event::assertNotDispatched(Activating::class);
+        Event::assertNotDispatched(Activated::class);
+    }
+
+    #[Test]
+    public function it_fires_the_transitions_own_events_for_a_trigger_built_by_hand(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        Approve::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+
+        Event::assertDispatched(Approving::class, fn (Approving $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approved::class, fn (Approved $event): bool => $event->model->is($user));
         Event::assertNotDispatched(Activating::class);
         Event::assertNotDispatched(Activated::class);
     }
