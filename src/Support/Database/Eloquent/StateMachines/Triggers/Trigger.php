@@ -71,6 +71,23 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             });
     }
 
+    private null|(StateMachineable&BackedEnum) $persisted {
+        get => match ($this->model->exists) {
+            false => $this->current,
+            true => with(
+                $this->model->newModelQuery()
+                    ->whereKey($this->model->getRawOriginal($this->model->getKeyName()) ?? $this->model->getKey())
+                    ->lockForUpdate()
+                    ->toBase()
+                    ->value($this->field),
+                fn ($value) => match ($value) {
+                    null => null,
+                    default => $this->to::tryFrom($value),
+                }
+            ),
+        };
+    }
+
     private bool $changesState {
         get => $this->changesState ??= $this->current !== $this->to;
     }
@@ -231,27 +248,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         );
 
         throw_unless(
-            $this->persisted() === ($this->withoutTransition ? $this->to : $this->from),
+            $this->persisted === ($this->withoutTransition ? $this->to : $this->from),
             Invalid::class,
             $this->model,
             $this->to,
             $this->field
-        );
-    }
-
-    private function persisted(): null|(StateMachineable&BackedEnum)
-    {
-        if (! $this->model->exists) {
-            return $this->current;
-        }
-
-        return with(
-            $this->model->getConnection()
-                ->table($this->model->getTable())
-                ->where($this->model->getKeyName(), $this->model->getOriginal($this->model->getKeyName()) ?? $this->model->getKey())
-                ->lockForUpdate()
-                ->value($this->field),
-            fn ($value) => is_null($value) ? null : $this->to::tryFrom($value)
         );
     }
 

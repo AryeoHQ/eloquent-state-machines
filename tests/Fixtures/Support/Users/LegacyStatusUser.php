@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Fixtures\Support\Users;
 
+use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Tests\Fixtures\Support\Users\Factories\Factory;
 use Tests\Fixtures\Support\Users\Status\Status;
 
 /**
@@ -13,6 +15,7 @@ use Tests\Fixtures\Support\Users\Status\Status;
  * @phpstan-property \Support\Database\Eloquent\StateMachines\StateMachine<\Tests\Fixtures\Support\Users\Status\Status> $legacy_status
  * @phpstan-property \Support\Database\Eloquent\StateMachines\StateMachine<\Tests\Fixtures\Support\Users\Status\Status> $status
  */
+#[UseFactory(Factory::class)]
 class LegacyStatusUser extends User
 {
     protected $table = 'users';
