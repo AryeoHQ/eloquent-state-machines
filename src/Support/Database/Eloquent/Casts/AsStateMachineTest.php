@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Support\Database\Eloquent\Casts;
 
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Support\Database\Eloquent\StateMachines\Contracts;
 use Tests\Fixtures\Support\Users\LegacyStatusUser;
+use Tests\Fixtures\Support\Users\Status\Events\States\Registered;
+use Tests\Fixtures\Support\Users\Status\Events\States\Registering;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\User;
 use Tests\TestCase;
@@ -19,6 +22,18 @@ class AsStateMachineTest extends TestCase
         $user = User::factory()->registered()->make();
 
         $this->assertInstanceOf(Contracts\Proxy::class, $user->status);
+    }
+
+    #[Test]
+    public function it_fires_no_events_when_a_model_is_created_in_its_initial_state(): void
+    {
+        Event::fake([Registering::class, Registered::class]);
+
+        $user = User::factory()->create();
+
+        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+        Event::assertNotDispatched(Registering::class);
+        Event::assertNotDispatched(Registered::class);
     }
 
     #[Test]

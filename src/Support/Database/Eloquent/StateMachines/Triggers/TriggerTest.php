@@ -22,18 +22,22 @@ use ReflectionMethod;
 use RuntimeException;
 use stdClass;
 use Support\Actions\Pipeline\Exceptions\Interrupted;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Tests\Fixtures\Support\Users\LegacyStatusUser;
 use Tests\Fixtures\Support\Users\SecondaryUser;
-use Tests\Fixtures\Support\Users\Status\Events\Activated;
-use Tests\Fixtures\Support\Users\Status\Events\Activating;
-use Tests\Fixtures\Support\Users\Status\Events\Deactivating;
-use Tests\Fixtures\Support\Users\Status\Events\Registered;
-use Tests\Fixtures\Support\Users\Status\Events\Registering;
+use Tests\Fixtures\Support\Users\Status\Events\States\Activated;
+use Tests\Fixtures\Support\Users\Status\Events\States\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\States\Deactivating;
+use Tests\Fixtures\Support\Users\Status\Events\States\Registered;
+use Tests\Fixtures\Support\Users\Status\Events\States\Registering;
+use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approved;
+use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approving;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateUniquely;
+use Tests\Fixtures\Support\Users\Status\Triggers\Approve;
 use Tests\Fixtures\Support\Users\Status\Triggers\CatchesInnerManualFail;
 use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
@@ -497,23 +501,33 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
-    public function it_skips_before_event_for_stationary_transition(): void
+    public function it_fires_no_events_for_a_declared_self_transition(): void
     {
-        Event::fake([Registering::class]);
+        Event::fake([Registering::class, Registered::class]);
 
-        Ping::make()->to(Status::Registered)->from(Status::Registered)->on(User::factory()->registered()->create(), 'status')->now();
+        $user = User::factory()->registered()->create();
+
+        $user->status->ping()->now();
 
         Event::assertNotDispatched(Registering::class);
+        Event::assertNotDispatched(Registered::class);
     }
 
     #[Test]
-    public function it_skips_after_event_for_stationary_transition(): void
+    public function it_fires_no_events_for_an_undeclared_trigger_that_changes_no_state(): void
     {
-        Event::fake([Registered::class]);
+        Event::fake([Registering::class, Registered::class, Activating::class, Activated::class]);
 
-        Ping::make()->to(Status::Registered)->from(Status::Registered)->on(User::factory()->registered()->create(), 'status')->now();
+        $user = User::factory()->registered()->create();
 
+        Activate::make()->to(Status::Registered)->from(Status::Registered)->on($user, 'status')->now();
+
+        $this->assertNotNull($user->refresh()->activated_at);
+        $this->assertSame(Status::Registered, $user->status->enum);
+        Event::assertNotDispatched(Registering::class);
         Event::assertNotDispatched(Registered::class);
+        Event::assertNotDispatched(Activating::class);
+        Event::assertNotDispatched(Activated::class);
     }
 
     #[Test]
@@ -1575,6 +1589,110 @@ class TriggerTest extends TestCase
         $this->assertSame(Status::Registered, $user->status->enum);
         $this->assertFalse($user->isDirty(['status', 'legacy_status']));
         $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+    }
+
+    #[Test]
+    public function it_fires_the_states_events_and_the_transitions_own_events(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->approve()->now();
+
+        Event::assertDispatched(Activating::class, fn (Activating $event): bool => $event->model->is($user));
+        Event::assertDispatched(Activated::class, fn (Activated $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approving::class, fn (Approving $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approved::class, fn (Approved $event): bool => $event->model->is($user));
+    }
+
+    #[Test]
+    public function it_fires_only_the_states_events_for_a_transition_into_the_same_state_without_its_own(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->activate()->now();
+
+        Event::assertDispatched(Activating::class);
+        Event::assertDispatched(Activated::class);
+        Event::assertNotDispatched(Approving::class);
+        Event::assertNotDispatched(Approved::class);
+    }
+
+    #[Test]
+    public function it_fires_both_pairs_on_the_queue(): void
+    {
+        config()->set('queue.default', 'database');
+
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        $user->status->approve()->dispatch();
+
+        Event::assertNotDispatched(Activating::class);
+        Event::assertNotDispatched(Approving::class);
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+        Event::assertDispatched(Activating::class);
+        Event::assertDispatched(Activated::class);
+        Event::assertDispatched(Approving::class);
+        Event::assertDispatched(Approved::class);
+    }
+
+    #[Test]
+    public function it_fires_both_pairs_on_the_queue_when_the_trigger_serializes_models(): void
+    {
+        config()->set('queue.default', 'database');
+
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->raise(new Events(Approving::class, Approved::class))->on($user, 'status')->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+        Event::assertDispatched(Activating::class);
+        Event::assertDispatched(Activated::class);
+        Event::assertDispatched(Approving::class);
+        Event::assertDispatched(Approved::class);
+    }
+
+    #[Test]
+    public function it_fires_both_pairs_for_a_trigger_built_by_hand(): void
+    {
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        Approve::make()->to(Status::Activated)->from(Status::Registered)->raise(new Events(Approving::class, Approved::class))->on($user, 'status')->now();
+
+        Event::assertDispatched(Activating::class, fn (Activating $event): bool => $event->model->is($user));
+        Event::assertDispatched(Activated::class, fn (Activated $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approving::class, fn (Approving $event): bool => $event->model->is($user));
+        Event::assertDispatched(Approved::class, fn (Approved $event): bool => $event->model->is($user));
+    }
+
+    #[Test]
+    public function it_wraps_the_states_events_in_the_transitions_own(): void
+    {
+        Event::listen(fn (Activating|Approving|Activated|Approved $event) => Context::push('events', [$event::class, $event->model->getConnection()->transactionLevel()]));
+
+        $user = User::factory()->registered()->create();
+
+        DB::transaction(function () use ($user): void {
+            $user->status->approve()->now();
+
+            $this->assertSame([[Approving::class, 2], [Activating::class, 2]], Context::get('events'));
+        });
+
+        $this->assertSame([[Approving::class, 2], [Activating::class, 2], [Activated::class, 0], [Approved::class, 0]], Context::get('events'));
     }
 
     #[Test]

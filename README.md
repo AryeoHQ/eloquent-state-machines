@@ -36,7 +36,7 @@ enum Status: string implements StateMachineable
 
 #### 1. Create Events
 ```php
-namespace Users\Status\Events;
+namespace Users\Status\Events\States;
 
 use Users\User;
 
@@ -52,7 +52,7 @@ class Activating
 ```
 
 ```php
-namespace Users\Status\Events;
+namespace Users\Status\Events\States;
 
 use Users\User;
 
@@ -91,6 +91,26 @@ enum Status: string implements StateMachineable
 ```
 
 > **Note:** The `after` event never runs inside the transaction — it fires only after the transition has committed. A throwing listener therefore cannot roll the transition back.
+
+> **Note:** Only a trigger dispatches events. Creating a model in its initial state, such as a `User` whose `status` defaults to `Registered`, dispatches neither event of that state's pair.
+
+#### 3. Lay out events
+
+Place a state machine's events beside it, with one namespace for state events and one for transition events (see [Transition Events](#transition-events)). `<Machine>` is the state machine's directory:
+
+```
+<Entity>/<Machine>/Events/States/<Event>.php
+<Entity>/<Machine>/Events/Transitions/<Event>.php
+```
+
+```
+Users/Status/Events/States/Activating.php
+Users/Status/Events/States/Activated.php
+Users/Status/Events/Transitions/Reinstating.php
+Users/Status/Events/Transitions/Reinstated.php
+```
+
+A state event and a transition event may share a basename, such as `States\Activated` and `Transitions\Activated`. Only the namespace separates them. The package does not enforce this layout.
 
 ### Define Transitions
 Transitions are represented by the target state and the trigger used to complete the operation.
@@ -153,6 +173,27 @@ enum Status: string implements StateMachineable
 }
 ```
 
+#### Transition Events
+
+A trigger that changes state dispatches the target state's `#[Events]`, so every transition into one state raises the same pair. A transition can also declare its own events:
+
+```php
+#[Events(before: Suspending::class, after: Suspended::class)]
+#[Transition(to: self::Activated, using: Triggers\Reinstate::class, events: new Events(before: Reinstating::class, after: Reinstated::class))]
+case Suspended = 'suspended';
+```
+
+`reinstate()` raises both pairs, and the transition's pair wraps the state's:
+
+1. `Reinstating`, then `Activating`, inside the lifecycle transaction
+2. `Activated`, then `Reinstated`, after the transaction commits
+
+A transition into `Activated` that declares no events raises `Activating` and `Activated` only. A listener on `Activated` therefore hears every entry into the state, and a listener on `Reinstated` hears only a reinstatement. Each event receives the model, as a state's events do.
+
+The state's `#[Events]` stays required on every case. A transition's `events` is optional.
+
+Each event class can be used only once per enum, across every state and transition. Calling a trigger through the state machine throws `Attributes\Events\Exceptions\Duplicate` when an event class shows up twice.
+
 #### Stationary Transitions
 
 A transition can target the current state. This is useful when a state represents a holding pattern — the trigger executes guarded logic without moving the model to a new state.
@@ -178,8 +219,10 @@ stateDiagram-v2
 When a trigger targets the current state:
 - `allowed()` is still evaluated
 - `handle()` executes normally
-- Before/after events are **not** dispatched
+- No events are dispatched
 - The state column is **not** written
+
+A stationary transition cannot declare its own `events`. Calling a trigger through the state machine throws `Attributes\Events\Exceptions\Stationary` when one does, and PHPStan flags the case.
 
 This lets you define named, guarded entry points for work within a state without introducing intermediate states into your graph.
 
@@ -440,10 +483,13 @@ stateDiagram-v2
     note right of Registered: onboard()
     note right of Registered: ping()
     Registered --> Activated: activate()
+    Registered --> Activated: approve() / Approving, Approved
     Registered --> Suspended: suspend()
     Activated --> Deactivated: deactivate()
 ```
 <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
+
+A transition that declares its own events carries them in its label, after its trigger, as `approve()` shows above.
 
 ### Usage
 The command offers two primary outcomes.

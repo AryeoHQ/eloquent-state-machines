@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Tests\Fixtures\Support\Users\Status\Events;
+namespace Tests\Fixtures\Support\Users\Status\Events\States;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Suspended
+class Suspending
 {
     public readonly Model $model;
 

@@ -35,7 +35,7 @@ class TransitionUsingMustBeATriggerTest extends RuleTestCase
         $this->analyse([$this->getFixturePath('EloquentStateMachines/TransitionUsingNotATrigger.php')], [
             [
                 '[Tests\Fixtures\Tooling\EloquentStateMachines\NotATrigger] is not a Trigger. The #[Transition] using parameter must reference a class that extends Trigger.',
-                20,
+                22,
             ],
         ]);
     }

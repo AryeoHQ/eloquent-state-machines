@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Fixtures\Support\Users\Status\Events;
+namespace Tests\Fixtures\Support\Users\Status\Events\States;
 
 use Illuminate\Contracts\Config\Repository;
 use Tests\Fixtures\Support\Users\User;

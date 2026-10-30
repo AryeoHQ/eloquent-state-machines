@@ -6,6 +6,7 @@ namespace Support\Database\Eloquent\StateMachines\Triggers;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Event;
 use InvalidArgumentException;
 use ReflectionClass;
@@ -14,6 +15,7 @@ use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
 use Support\Actions\Concerns\AsAction;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\Invalid;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Exceptions\NotBound;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
@@ -32,6 +34,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final public protected(set) readonly StateMachineable&BackedEnum $from;
 
+    final public protected(set) null|Events $raise = null;
+
     private TransitionDuring $transitionDuring {
         get => $this->transitionDuring ??= collect([static::class, ...class_parents($this)])
             ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(TransitionDuring::class))
@@ -43,6 +47,11 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         get => $this->withoutTransaction ??= collect([static::class, ...class_parents($this)])
             ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(WithoutTransaction::class))
             ->isNotEmpty();
+    }
+
+    /** @var Collection<int, Events> */
+    private Collection $events {
+        get => $this->events ??= collect([$this->raise, $this->to->events()])->filter()->values();
     }
 
     private Model $model {
@@ -103,6 +112,13 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
     final public function from(StateMachineable&BackedEnum $from): self
     {
         $this->from = $from;
+
+        return $this;
+    }
+
+    final public function raise(null|Events $events): self
+    {
+        $this->raise = $events;
 
         return $this;
     }
@@ -170,7 +186,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
         $this->preventBlockedTransition();
 
         when($this->changesState, function () {
-            $this->dispatchEvent($this->to->events()->before);
+            $this->events->each(fn (Events $events) => $this->dispatchEvent($events->before));
             $this->transition(Phase::Before);
         });
     }
@@ -182,7 +198,7 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
             when(! $this->withoutTransition || $this->model->isDirty(), fn () => $this->save());
 
-            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->dispatchEvent($this->to->events()->after)));
+            when($this->changesState, fn () => $this->model->getConnection()->afterCommit(fn () => $this->events->reverse()->each(fn (Events $events) => $this->dispatchEvent($events->after))));
         });
     }
 

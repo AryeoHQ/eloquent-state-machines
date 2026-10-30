@@ -6,8 +6,8 @@ namespace Tests\Fixtures\Tooling\EloquentStateMachines;
 
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
-use Tests\Fixtures\Support\Users\Status\Events\Activated;
-use Tests\Fixtures\Support\Users\Status\Events\Activating;
+use Tests\Fixtures\Support\Users\Status\Events\States\Activated;
+use Tests\Fixtures\Support\Users\Status\Events\States\Activating;
 
 enum MissingManagesState: string implements StateMachineable
 {
