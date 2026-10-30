@@ -11,15 +11,16 @@ use Tests\Fixtures\Support\Users\Status\Events\States\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\States\Activating;
 use Tests\Fixtures\Support\Users\Status\Events\States\Deactivating;
 
-class_alias(Activated::class, AliasedActivated::class);
-
-enum ReusedAliasedStateEvent: string implements StateMachineable
+/**
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Activate activate()
+ */
+enum DuplicateStateEvent: string implements StateMachineable
 {
     use ManagesState;
 
     #[Events(before: Activating::class, after: Activated::class)]
     case Active = 'active';
 
-    #[Events(before: Deactivating::class, after: AliasedActivated::class)]
+    #[Events(before: Deactivating::class, after: Activated::class)]
     case Inactive = 'inactive';
 }

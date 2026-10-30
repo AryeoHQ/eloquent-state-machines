@@ -175,24 +175,24 @@ enum Status: string implements StateMachineable
 
 #### Transition Events
 
-A trigger always dispatches the target state's `#[Events]`, so every transition into one state raises the same pair. A transition can also declare its own `before` and `after` events:
+A trigger that changes state dispatches the target state's `#[Events]`, so every transition into one state raises the same pair. A transition can also declare its own events:
 
 ```php
 #[Events(before: Suspending::class, after: Suspended::class)]
-#[Transition(to: self::Activated, using: Triggers\Reinstate::class, before: Reinstating::class, after: Reinstated::class)]
+#[Transition(to: self::Activated, using: Triggers\Reinstate::class, events: new Events(before: Reinstating::class, after: Reinstated::class))]
 case Suspended = 'suspended';
 ```
 
-`reinstate()` raises both pairs, and the state's event comes first in each phase:
+`reinstate()` raises both pairs, and the transition's pair wraps the state's:
 
-1. `Activating`, then `Reinstating`, inside the lifecycle transaction
+1. `Reinstating`, then `Activating`, inside the lifecycle transaction
 2. `Activated`, then `Reinstated`, after the transaction commits
 
 A transition into `Activated` that declares no events raises `Activating` and `Activated` only. A listener on `Activated` therefore hears every entry into the state, and a listener on `Reinstated` hears only a reinstatement. Each event receives the model, as a state's events do.
 
-A transition declares both events or neither. A transition that declares one throws `Attributes\Events\Exceptions\Incomplete`, and an event class that does not exist throws `Attributes\Events\Exceptions\NotFound`. The state's `#[Events]` stays required on every case.
+The state's `#[Events]` stays required on every case. A transition's `events` is optional.
 
-Each event class belongs to one declaration. When two states, two transitions, or a state and a transition declare one class, `events()` and `transitions()` throw `Attributes\Events\Exceptions\Reused` on every case of the enum. Every trigger reads both, so the first trigger to run throws.
+Each event class can be used only once per enum, across every state and transition. Calling a trigger through the state machine throws `Attributes\Events\Exceptions\Duplicate` when an event class shows up twice.
 
 #### Stationary Transitions
 
@@ -219,10 +219,10 @@ stateDiagram-v2
 When a trigger targets the current state:
 - `allowed()` is still evaluated
 - `handle()` executes normally
-- The state's before and after events are dispatched, and so are the transition's own events when it declares them, in the order [Transition Events](#transition-events) describes
+- No events are dispatched
 - The state column is **not** written
 
-`process()` therefore raises `Locking` and `Locked` on every run. A trigger can also be built by hand with one state in both `from()` and `to()`. When that state declares no such transition, the trigger dispatches no events.
+A stationary transition cannot declare its own `events`. Calling a trigger through the state machine throws `Attributes\Events\Exceptions\Stationary` when one does, and PHPStan flags the case.
 
 This lets you define named, guarded entry points for work within a state without introducing intermediate states into your graph.
 
@@ -482,7 +482,6 @@ stateDiagram-v2
     [*] --> Registered
     note right of Registered: onboard()
     note right of Registered: ping()
-    note right of Registered: remind() / Reminding, Reminded
     Registered --> Activated: activate()
     Registered --> Activated: approve() / Approving, Approved
     Registered --> Suspended: suspend()
@@ -490,7 +489,7 @@ stateDiagram-v2
 ```
 <!-- diagram:Tests\Fixtures\Support\Users\Status\Status:end -->
 
-A transition that declares its own events carries them in its label, after its trigger, as `remind()` and `approve()` show above.
+A transition that declares its own events carries them in its label, after its trigger, as `approve()` shows above.
 
 ### Usage
 The command offers two primary outcomes.

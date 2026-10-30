@@ -15,12 +15,15 @@ use Tests\Fixtures\Support\Users\Status\Events\States\Registering;
 use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approving;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 
-enum ReusedStateEventOnTransition: string implements StateMachineable
+/**
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Activate activate()
+ */
+enum DuplicateStateEventOnTransition: string implements StateMachineable
 {
     use ManagesState;
 
     #[Events(before: Registering::class, after: Registered::class)]
-    #[Transition(to: self::Active, using: Activate::class, before: Approving::class, after: Activated::class)]
+    #[Transition(to: self::Active, using: Activate::class, events: new Events(before: Approving::class, after: Activated::class))]
     case Pending = 'pending';
 
     #[Events(before: Activating::class, after: Activated::class)]

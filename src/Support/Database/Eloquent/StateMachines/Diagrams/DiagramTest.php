@@ -120,7 +120,6 @@ class DiagramTest extends TestCase
         $updated = new Diagram(Status::class, Direction::LeftToRight)->toMermaid()->toString();
 
         $this->assertStringContainsString('Registered --> Activated: approve() / Approving, Approved', $updated);
-        $this->assertStringContainsString('note right of Registered: remind() / Reminding, Reminded', $updated);
         $this->assertStringContainsString('Registered --> Activated: activate()'.PHP_EOL, $updated);
         $this->assertStringContainsString('note right of Registered: ping()'.PHP_EOL, $updated);
     }

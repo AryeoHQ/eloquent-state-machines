@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace Support\Database\Eloquent\StateMachines;
 
 use PHPUnit\Framework\Attributes\Test;
+use Support\Database\Eloquent\StateMachines\Attributes\Events;
 use Support\Database\Eloquent\StateMachines\Triggers\Contracts\Trigger;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\Duplicate;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\Invalid;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\User;
+use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateAliasedStateEvent;
+use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateEventInDeclaration;
+use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateStateEvent;
+use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateStateEventOnTransition;
+use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateTransitionEvent;
 use Tests\Fixtures\Tooling\EloquentStateMachines\DuplicateTransitionTrigger;
+use Tests\Fixtures\Tooling\EloquentStateMachines\StationaryTransitionEvents;
 use Tests\TestCase;
 
 class StateMachineTest extends TestCase
@@ -51,6 +58,15 @@ class StateMachineTest extends TestCase
     }
 
     #[Test]
+    public function it_resolves_triggers_repeatedly_from_a_valid_enum(): void
+    {
+        $stateMachine = StateMachine::make(User::factory()->make(), Status::Registered, 'status');
+
+        $this->assertInstanceOf(Trigger::class, $stateMachine->activate());
+        $this->assertInstanceOf(Trigger::class, $stateMachine->approve());
+    }
+
+    #[Test]
     public function it_throws_exception_for_invalid_case_transition(): void
     {
         $stateMachine = StateMachine::make(User::factory()->make(), Status::Activated, 'status');
@@ -68,6 +84,64 @@ class StateMachineTest extends TestCase
         $stateMachine = StateMachine::make(User::factory()->make(), DuplicateTransitionTrigger::Active, 'status');
 
         $stateMachine->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_a_stationary_transition_declares_events(): void
+    {
+        $this->expectException(Events\Exceptions\Stationary::class);
+
+        StateMachine::make(User::factory()->make(), StationaryTransitionEvents::Registered, 'status')->ping();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_two_states_declare_one_event(): void
+    {
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateStateEvent::Active, 'status')->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_on_every_call_for_an_invalid_enum(): void
+    {
+        rescue(fn () => StateMachine::make(User::factory()->make(), DuplicateStateEvent::Active, 'status')->activate(), report: false);
+
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateStateEvent::Active, 'status')->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_two_states_declare_one_event_through_an_alias(): void
+    {
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateAliasedStateEvent::Active, 'status')->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_two_transitions_declare_one_event(): void
+    {
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateTransitionEvent::Pending, 'status')->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_a_state_and_a_transition_declare_one_event(): void
+    {
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateStateEventOnTransition::Pending, 'status')->activate();
+    }
+
+    #[Test]
+    public function it_throws_exception_when_one_declaration_uses_an_event_for_both_before_and_after(): void
+    {
+        $this->expectException(Events\Exceptions\Duplicate::class);
+
+        StateMachine::make(User::factory()->make(), DuplicateEventInDeclaration::Inactive, 'status')->activate();
     }
 
     #[Test]

@@ -18,25 +18,25 @@ use Tests\Fixtures\Support\Users\Status\Events\States\Suspended;
 use Tests\Fixtures\Support\Users\Status\Events\States\Suspending;
 use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approved;
 use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approving;
-use Tests\Fixtures\Support\Users\Status\Events\Transitions\Reminded;
-use Tests\Fixtures\Support\Users\Status\Events\Transitions\Reminding;
-use Tests\Fixtures\Support\Users\Status\Triggers\Approve;
-use Tests\Fixtures\Support\Users\Status\Triggers\Remind;
+use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
+use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
 
-class_alias(Approve::class, AliasedApprove::class);
-class_alias(Remind::class, AliasedRemind::class);
-
-enum NonCanonicalTransitionTrigger: string implements StateMachineable
+/**
+ * @method \Tests\Fixtures\Support\Users\Status\Triggers\Ping ping()
+ */
+enum StationaryTransitionEvents: string implements StateMachineable
 {
     use ManagesState;
 
     #[Events(before: Registering::class, after: Registered::class)]
-    #[Transition(to: self::Registered, using: AliasedRemind::class, before: Reminding::class, after: Reminded::class)]
-    #[Transition(to: self::Registered, using: '\Tests\Fixtures\Support\Users\Status\Triggers\Ping', before: Suspending::class, after: Suspended::class)]
-    #[Transition(to: self::Activated, using: AliasedApprove::class, before: Approving::class, after: Approved::class)]
-    #[Transition(to: self::Activated, using: '\Tests\Fixtures\Support\Users\Status\Triggers\Activate', before: Deactivating::class, after: Deactivated::class)]
+    #[Transition(to: self::Registered, using: Ping::class, events: new Events(before: Approving::class, after: Approved::class))]
     case Registered = 'registered';
 
     #[Events(before: Activating::class, after: Activated::class)]
-    case Activated = 'activated';
+    #[Transition(self::Active, Activate::class, new Events(Suspending::class, Suspended::class))]
+    case Active = 'active';
+
+    #[Transition(to: StationaryTransitionEvents::Inactive, using: Deactivate::class, events: new Events(before: Deactivating::class, after: Deactivated::class))]
+    case Inactive = 'inactive';
 }

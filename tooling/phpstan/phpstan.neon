@@ -28,6 +28,14 @@ services:
         tags:
             - phpstan.rules.rule
     -
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableStationaryTransitionCannotDefineEvents
+        tags:
+            - phpstan.rules.rule
+    -
+        class: Tooling\EloquentStateMachines\PhpStan\Rules\StateMachineableCannotDuplicateEvents
+        tags:
+            - phpstan.rules.rule
+    -
         class: Tooling\EloquentStateMachines\PhpStan\Rules\TriggersMustDefineATarget
         tags:
             - phpstan.rules.rule

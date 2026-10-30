@@ -20,6 +20,7 @@ enum ValidStateMachineable: string implements StateMachineable
     use ManagesState;
 
     #[Events(before: Activating::class, after: Activated::class)]
+    #[Transition(to: self::Active, using: Activate::class, events: null)]
     #[Transition(to: self::Deactivated, using: Deactivate::class)]
     case Active = 'active';
 

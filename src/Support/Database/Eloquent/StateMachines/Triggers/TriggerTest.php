@@ -22,22 +22,17 @@ use ReflectionMethod;
 use RuntimeException;
 use stdClass;
 use Support\Actions\Pipeline\Exceptions\Interrupted;
+use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 use Tests\Fixtures\Support\Users\LegacyStatusUser;
-use Tests\Fixtures\Support\Users\NonCanonicalTransitionTriggerUser;
 use Tests\Fixtures\Support\Users\SecondaryUser;
 use Tests\Fixtures\Support\Users\Status\Events\States\Activated;
 use Tests\Fixtures\Support\Users\Status\Events\States\Activating;
-use Tests\Fixtures\Support\Users\Status\Events\States\Deactivated;
 use Tests\Fixtures\Support\Users\Status\Events\States\Deactivating;
 use Tests\Fixtures\Support\Users\Status\Events\States\Registered;
 use Tests\Fixtures\Support\Users\Status\Events\States\Registering;
-use Tests\Fixtures\Support\Users\Status\Events\States\Suspended;
-use Tests\Fixtures\Support\Users\Status\Events\States\Suspending;
 use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approved;
 use Tests\Fixtures\Support\Users\Status\Events\Transitions\Approving;
-use Tests\Fixtures\Support\Users\Status\Events\Transitions\Reminded;
-use Tests\Fixtures\Support\Users\Status\Events\Transitions\Reminding;
 use Tests\Fixtures\Support\Users\Status\Status;
 use Tests\Fixtures\Support\Users\Status\Triggers\Activate;
 use Tests\Fixtures\Support\Users\Status\Triggers\ActivateBeforeTransition;
@@ -48,7 +43,6 @@ use Tests\Fixtures\Support\Users\Status\Triggers\Deactivate;
 use Tests\Fixtures\Support\Users\Status\Triggers\Exceptions\Unprocessable;
 use Tests\Fixtures\Support\Users\Status\Triggers\Onboard;
 use Tests\Fixtures\Support\Users\Status\Triggers\Ping;
-use Tests\Fixtures\Support\Users\Status\Triggers\Remind;
 use Tests\Fixtures\Support\Users\Status\Triggers\SavesActivation;
 use Tests\Fixtures\Support\Users\Status\Triggers\SavesActivationWithoutTransaction;
 use Tests\Fixtures\Support\Users\Status\Triggers\SavesTargetState;
@@ -65,7 +59,6 @@ use Tests\Fixtures\Support\Users\Status\Triggers\WritesWithoutTransaction;
 use Tests\Fixtures\Support\Users\User;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MissingTarget;
 use Tests\Fixtures\Tooling\EloquentStateMachines\MultipleTargets;
-use Tests\Fixtures\Tooling\EloquentStateMachines\NonCanonicalTransitionTrigger;
 use Tests\Fixtures\Tooling\EloquentStateMachines\TargetNotModel;
 use Tests\TestCase;
 
@@ -508,36 +501,16 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
-    public function it_fires_the_states_before_event_for_a_declared_self_transition(): void
+    public function it_fires_no_events_for_a_declared_self_transition(): void
     {
-        Event::fake([Registering::class]);
-
-        Ping::make()->to(Status::Registered)->from(Status::Registered)->on($user = User::factory()->registered()->create(), 'status')->now();
-
-        Event::assertDispatched(Registering::class, fn (Registering $event): bool => $event->model->is($user));
-    }
-
-    #[Test]
-    public function it_fires_the_states_after_event_for_a_declared_self_transition(): void
-    {
-        Event::fake([Registered::class]);
-
-        Ping::make()->to(Status::Registered)->from(Status::Registered)->on($user = User::factory()->registered()->create(), 'status')->now();
-
-        Event::assertDispatched(Registered::class, fn (Registered $event): bool => $event->model->is($user));
-    }
-
-    #[Test]
-    public function it_fires_the_states_events_then_its_own_for_a_declared_self_transition(): void
-    {
-        Event::listen(fn (Registering|Reminding|Registered|Reminded $event) => Context::push('events', $event::class));
+        Event::fake([Registering::class, Registered::class]);
 
         $user = User::factory()->registered()->create();
 
-        $user->status->remind()->now();
+        $user->status->ping()->now();
 
-        $this->assertSame([Registering::class, Reminding::class, Registered::class, Reminded::class], Context::get('events'));
-        $this->assertSame(Status::Registered, $user->refresh()->status->enum);
+        Event::assertNotDispatched(Registering::class);
+        Event::assertNotDispatched(Registered::class);
     }
 
     #[Test]
@@ -555,58 +528,6 @@ class TriggerTest extends TestCase
         Event::assertNotDispatched(Registered::class);
         Event::assertNotDispatched(Activating::class);
         Event::assertNotDispatched(Activated::class);
-    }
-
-    #[Test]
-    public function it_fires_its_own_events_for_a_transition_declared_through_a_trigger_alias(): void
-    {
-        Event::listen(fn (Activating|Approving|Activated|Approved $event) => Context::push('events', $event::class));
-
-        $user = new NonCanonicalTransitionTriggerUser;
-        $user->save();
-
-        Approve::make()->to(NonCanonicalTransitionTrigger::Activated)->from(NonCanonicalTransitionTrigger::Registered)->on($user, 'status')->now();
-
-        $this->assertSame([Activating::class, Approving::class, Activated::class, Approved::class], Context::get('events'));
-    }
-
-    #[Test]
-    public function it_fires_both_pairs_for_a_self_transition_declared_through_a_trigger_alias(): void
-    {
-        Event::listen(fn (Registering|Reminding|Registered|Reminded $event) => Context::push('events', $event::class));
-
-        $user = new NonCanonicalTransitionTriggerUser;
-        $user->save();
-
-        Remind::make()->to(NonCanonicalTransitionTrigger::Registered)->from(NonCanonicalTransitionTrigger::Registered)->on($user, 'status')->now();
-
-        $this->assertSame([Registering::class, Reminding::class, Registered::class, Reminded::class], Context::get('events'));
-    }
-
-    #[Test]
-    public function it_fires_its_own_events_for_a_transition_declared_with_a_leading_backslash(): void
-    {
-        Event::listen(fn (Activating|Deactivating|Activated|Deactivated $event) => Context::push('events', $event::class));
-
-        $user = new NonCanonicalTransitionTriggerUser;
-        $user->save();
-
-        Activate::make()->to(NonCanonicalTransitionTrigger::Activated)->from(NonCanonicalTransitionTrigger::Registered)->on($user, 'status')->now();
-
-        $this->assertSame([Activating::class, Deactivating::class, Activated::class, Deactivated::class], Context::get('events'));
-    }
-
-    #[Test]
-    public function it_fires_both_pairs_for_a_self_transition_declared_with_a_leading_backslash(): void
-    {
-        Event::listen(fn (Registering|Suspending|Registered|Suspended $event) => Context::push('events', $event::class));
-
-        $user = new NonCanonicalTransitionTriggerUser;
-        $user->save();
-
-        Ping::make()->to(NonCanonicalTransitionTrigger::Registered)->from(NonCanonicalTransitionTrigger::Registered)->on($user, 'status')->now();
-
-        $this->assertSame([Registering::class, Suspending::class, Registered::class, Suspended::class], Context::get('events'));
     }
 
     #[Test]
@@ -1730,7 +1651,7 @@ class TriggerTest extends TestCase
 
         $user = User::factory()->registered()->create();
 
-        Approve::make()->to(Status::Activated)->from(Status::Registered)->on($user, 'status')->now();
+        Approve::make()->to(Status::Activated)->from(Status::Registered)->raise(new Events(Approving::class, Approved::class))->on($user, 'status')->now();
 
         Event::assertDispatched(Activating::class, fn (Activating $event): bool => $event->model->is($user));
         Event::assertDispatched(Activated::class, fn (Activated $event): bool => $event->model->is($user));
@@ -1739,7 +1660,7 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
-    public function it_fires_the_states_event_before_the_transitions_own_in_each_phase(): void
+    public function it_wraps_the_states_events_in_the_transitions_own(): void
     {
         Event::listen(fn (Activating|Approving|Activated|Approved $event) => Context::push('events', [$event::class, $event->model->getConnection()->transactionLevel()]));
 
@@ -1748,10 +1669,10 @@ class TriggerTest extends TestCase
         DB::transaction(function () use ($user): void {
             $user->status->approve()->now();
 
-            $this->assertSame([[Activating::class, 2], [Approving::class, 2]], Context::get('events'));
+            $this->assertSame([[Approving::class, 2], [Activating::class, 2]], Context::get('events'));
         });
 
-        $this->assertSame([[Activating::class, 2], [Approving::class, 2], [Activated::class, 0], [Approved::class, 0]], Context::get('events'));
+        $this->assertSame([[Approving::class, 2], [Activating::class, 2], [Activated::class, 0], [Approved::class, 0]], Context::get('events'));
     }
 
     #[Test]

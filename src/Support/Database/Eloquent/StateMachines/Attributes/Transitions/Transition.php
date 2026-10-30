@@ -6,9 +6,7 @@ namespace Support\Database\Eloquent\StateMachines\Attributes\Transitions;
 
 use Attribute;
 use BackedEnum;
-use ReflectionClass;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
-use Support\Database\Eloquent\StateMachines\Attributes\Events\Exceptions\Incomplete;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
 use Support\Database\Eloquent\StateMachines\Triggers\Exceptions\NotFound;
 use Support\Database\Eloquent\StateMachines\Triggers\Trigger;
@@ -23,17 +21,12 @@ final readonly class Transition
 
     public null|Events $events;
 
-    public function __construct(StateMachineable&BackedEnum $to, string $using, null|string $before = null, null|string $after = null)
+    public function __construct(StateMachineable&BackedEnum $to, string $using, null|Events $events = null)
     {
         throw_unless(is_a($using, Trigger::class, true), NotFound::class, $using);
 
         $this->to = $to;
-        $this->using = (new ReflectionClass($using))->getName();
-        $this->events = match (true) {
-            is_null($before) && is_null($after) => null,
-            is_null($before) => throw new Incomplete('after', 'before'),
-            is_null($after) => throw new Incomplete('before', 'after'),
-            default => new Events($before, $after),
-        };
+        $this->using = $using;
+        $this->events = $events;
     }
 }
