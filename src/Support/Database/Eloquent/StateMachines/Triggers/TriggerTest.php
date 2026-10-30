@@ -1645,6 +1645,26 @@ class TriggerTest extends TestCase
     }
 
     #[Test]
+    public function it_fires_both_pairs_on_the_queue_when_the_trigger_serializes_models(): void
+    {
+        config()->set('queue.default', 'database');
+
+        Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);
+
+        $user = User::factory()->registered()->create();
+
+        WithSerializedModel::make()->to(Status::Activated)->from(Status::Registered)->raise(new Events(Approving::class, Approved::class))->on($user, 'status')->dispatch();
+
+        app('queue.worker')->runNextJob('database', 'default', new WorkerOptions);
+
+        $this->assertSame(Status::Activated, $user->refresh()->status->enum);
+        Event::assertDispatched(Activating::class);
+        Event::assertDispatched(Activated::class);
+        Event::assertDispatched(Approving::class);
+        Event::assertDispatched(Approved::class);
+    }
+
+    #[Test]
     public function it_fires_both_pairs_for_a_trigger_built_by_hand(): void
     {
         Event::fake([Approving::class, Approved::class, Activating::class, Activated::class]);

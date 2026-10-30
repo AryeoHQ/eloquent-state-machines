@@ -34,6 +34,8 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
 
     final public protected(set) readonly StateMachineable&BackedEnum $from;
 
+    final public protected(set) null|Events $raise = null;
+
     private TransitionDuring $transitionDuring {
         get => $this->transitionDuring ??= collect([static::class, ...class_parents($this)])
             ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(TransitionDuring::class))
@@ -46,8 +48,6 @@ abstract class Trigger implements Contracts\Trigger // @phpstan-ignore Action.fi
             ->flatMap(fn (string $class) => (new ReflectionClass($class))->getAttributes(WithoutTransaction::class))
             ->isNotEmpty();
     }
-
-    private null|Events $raise = null;
 
     /** @var Collection<int, Events> */
     private Collection $events {
