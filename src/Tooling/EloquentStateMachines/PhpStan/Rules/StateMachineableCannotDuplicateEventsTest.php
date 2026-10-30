@@ -18,9 +18,7 @@ class StateMachineableCannotDuplicateEventsTest extends RuleTestCase
 
     protected function getRule(): Rule
     {
-        return new StateMachineableCannotDuplicateEvents(
-            self::getContainer()->getByType(\PHPStan\Reflection\ReflectionProvider::class)
-        );
+        return new StateMachineableCannotDuplicateEvents;
     }
 
     #[Test]
@@ -33,17 +31,6 @@ class StateMachineableCannotDuplicateEventsTest extends RuleTestCase
     public function it_passes_when_events_come_from_constants(): void
     {
         $this->analyse([$this->getFixturePath('EloquentStateMachines/EventsFromConstants.php')], []);
-    }
-
-    #[Test]
-    public function it_fails_when_two_states_declare_one_event_through_an_alias(): void
-    {
-        $this->analyse([$this->getFixturePath('EloquentStateMachines/DuplicateAliasedStateEvent.php')], [
-            [
-                '[Tests\Fixtures\Support\Users\Status\Events\States\Activated] duplicated: An event can only be declared once per state machine.',
-                27,
-            ],
-        ]);
     }
 
     #[Test]

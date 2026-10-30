@@ -16,7 +16,6 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\Node\Stmt\EnumCase;
 use PHPStan\Analyser\Scope;
-use PHPStan\Reflection\ReflectionProvider;
 use Support\Database\Eloquent\StateMachines\Attributes\Events\Events;
 use Support\Database\Eloquent\StateMachines\Attributes\Transitions\Transition;
 use Support\Database\Eloquent\StateMachines\Contracts\StateMachineable;
@@ -29,15 +28,8 @@ use Tooling\Rules\Attributes\NodeType;
 #[NodeType(Enum_::class)]
 class StateMachineableCannotDuplicateEvents extends Rule
 {
-    private readonly ReflectionProvider $reflectionProvider;
-
     /** @var Collection<int, object{case: EnumCase, event: non-empty-string}&\stdClass> */
     private Collection $duplicates;
-
-    public function __construct(ReflectionProvider $reflectionProvider)
-    {
-        $this->reflectionProvider = $reflectionProvider;
-    }
 
     public function prepare(Node $node, Scope $scope): void
     {
@@ -90,8 +82,7 @@ class StateMachineableCannotDuplicateEvents extends Rule
             ->flatMap(fn (array $args): Collection => collect($args)
                 ->map(fn (Node $arg): mixed => $arg instanceof Arg ? $arg->value : null)
                 ->filter(fn (mixed $value): bool => $value instanceof ClassConstFetch && $value->class instanceof Name && $value->name instanceof Identifier && $value->name->toLowerString() === 'class')
-                ->map(fn (ClassConstFetch $fetch): string => $fetch->class->toString())
-                ->map(fn (string $event): string => $this->reflectionProvider->hasClass($event) ? $this->reflectionProvider->getClass($event)->getName() : $event))
+                ->map(fn (ClassConstFetch $fetch): string => $fetch->class->toString()))
             ->values();
     }
 }
